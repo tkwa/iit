@@ -1,4 +1,5 @@
 # %%
+from dataclasses import dataclass
 import numpy as np
 import torch as t
 from torch import Tensor
@@ -6,9 +7,11 @@ from torch.utils.data import Dataset
 import transformer_lens as tl
 from transformer_lens.hook_points import HookedRootModule, HookPoint
 import networkx as nx
-from dataclasses import dataclass
 from wrapper import HookedModuleWrapper
-from typing import Callable
+from typing import Callable, Optional
+from pvr import mnist_pvr_train, mnist_pvr_test
+
+
 # %%
 """
 Things to write:
@@ -27,8 +30,15 @@ HookName = str
 HLCache = dict
 
 @dataclass
-class Node():
-    f: Callable
+class HLNode():
+    name: HookName
+    index: Optional[int]
+
+@dataclass
+class LLNode():
+    name: HookName
+    index: Optional[int]
+    subspace: Optional[t.Tensor]
 
 class IITDataset(Dataset):
     def __init__(self, base_data, ablation_data, seed=0):
@@ -54,7 +64,7 @@ class IITModelPair():
     hl_graph: nx.DiGraph
     corr: dict[HookName, set[HookName]] # high -> low correspondence. Capital Pi in paper
 
-    def __init__(self, hl_model=None, ll_model=None, hl_graph=None, corr={}, seed=0):
+    def __init__(self, hl_model=None, ll_model=None, hl_graph=None, corr:dict[HLNode, set[LLNode]]={}, seed=0):
         # TODO change to construct hl_model from graph?
         if hl_model is None:
             assert hl_graph is not None
@@ -88,7 +98,7 @@ class IITModelPair():
         ll_ablation_output, self.ll_cache = self.ll_model.run_with_cache(ablation_input)
 
         hl_name = self.sample_hl_name()
-        ll_name = self.Pi(hl_name)
+        ll_name = self.corr(hl_name) # TODO change to multiple names
 
         hl_output = self.hl_model.run_with_hooks(base_input, (hl_name, self.hl_ablation_hook))
         ll_output = self.ll_model.run_with_hooks(base_input, (ll_name, self.ll_ablation_hook))
