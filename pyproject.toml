@@ -11,6 +11,8 @@ torch = "^2.1.2"
 transformer-lens = "^1.12.1"
 networkx = "^3.2.1"
 pytest = "^7.4.4"
+pillow = "^10.2.0"
+torchvision = "^0.16.2"
 
 
 [tool.poetry.group.dev.dependencies]
