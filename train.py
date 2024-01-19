@@ -17,6 +17,8 @@ from tqdm import tqdm
 from pvr import mnist_pvr_train, mnist_pvr_test, MNIST_PVR_HL
 from index import TorchIndex, Ix
 
+DEVICE = t.device('cuda' if t.cuda.is_available() else 'cpu')
+WANDB_ENTITY = "tkwa-team"
 
 # %%
 """
@@ -137,19 +139,23 @@ class IITModelPair():
 
         return hl_output, ll_output
 
-    def train(self, base_data, ablation_data, epochs=1000, use_wandb=False):
+    def train(self, base_data, ablation_data, test_base_data, test_ablation_data, epochs=1000, use_wandb=False):
         training_args = self.training_args
         dataset = IITDataset(base_data, ablation_data)
-        loader = DataLoader(dataset, batch_size=training_args['batch_size'], shuffle=True)
+        test_dataset = IITDataset(test_base_data, test_ablation_data)
+        loader = DataLoader(dataset, batch_size=training_args['batch_size'], shuffle=True, num_workers=training_args['num_workers'])
+        test_loader = DataLoader(test_dataset, batch_size=training_args['batch_size'], shuffle=True, num_workers=training_args['num_workers'])
         optimizer = t.optim.Adam(self.ll_model.parameters(), lr=training_args['lr'])
         loss_fn = t.nn.CrossEntropyLoss()
 
         if use_wandb:
-            raise NotImplementedError
+            wandb.init(project="iit", entity=WANDB_ENTITY)
 
-        for epoch in range(epochs):
+        for epoch in tqdm(range(epochs)):
             losses = []
             for i, (base_input, ablation_input) in tqdm(enumerate(loader), total=len(loader)):
+                base_input = [t.to(DEVICE) for t in base_input]
+                ablation_input = [t.to(DEVICE) for t in ablation_input]
                 optimizer.zero_grad()
                 self.hl_model.requires_grad_(False)
                 self.ll_model.train()
@@ -162,37 +168,42 @@ class IITModelPair():
                 # print(f"{ll_output=}, {hl_output=}")
                 losses.append(loss.item())
                 optimizer.step()
-            print(f"Epoch {epoch}: {np.mean(losses)}")
+            # now calculate test loss
+            test_losses = []
+            self.ll_model.eval()
+            self.hl_model.requires_grad_(False)
+            for i, (base_input, ablation_input) in enumerate(test_loader):
+                base_input = [t.to(DEVICE) for t in base_input]
+                ablation_input = [t.to(DEVICE) for t in ablation_input]
+                hl_output, ll_output = self.do_intervention(base_input, ablation_input, hl_node)
+                loss = loss_fn(ll_output, hl_output)
+                test_losses.append(loss.item())
+            print(f"Epoch {epoch}: {np.mean(losses):.4f}, {np.mean(test_losses):.4f}")
+
             if use_wandb:
-                wandb.log({'loss': np.mean(losses), 'epoch': epoch})
+                wandb.log({'train loss': np.mean(losses), 'test loss': np.mean(test_losses), 'epoch': epoch})
 
 
 # %%
 
-hl_model = MNIST_PVR_HL()
+hl_model = MNIST_PVR_HL().to(DEVICE)
 
-resnet18 = torchvision.models.resnet18(pretrained=False) # 11M parameters
-wrapped_r18 = HookedModuleWrapper(resnet18, name='resnet18', recursive=True, hook_self=False)
+resnet18 = torchvision.models.resnet18().to(DEVICE) # 11M parameters
+wrapped_r18 = HookedModuleWrapper(resnet18, name='resnet18', recursive=True, hook_self=False).to(DEVICE)
 
 # %%
 
 training_args = {
-    'lr': 0.001,
-    'batch_size': 32,
+    'batch_size': 256,
+    'lr': 0.005,
+    'num_workers': 4,
 }
 
 corr = {
     'hook_tl': {LLNode('mod.maxpool.hook_point', Ix[None, None, :28, :28])},
 }
 
-
 model_pair = IITModelPair(hl_model, ll_model=wrapped_r18, corr=corr, seed=0, training_args=training_args)
-model_pair.train(mnist_pvr_train, mnist_pvr_train, epochs=10)
+model_pair.train(mnist_pvr_train, mnist_pvr_train, mnist_pvr_test, mnist_pvr_test, epochs=1000, use_wandb=True)
 
 print(f"done training")
-# %%
-
-wrapped_r18(t.randn(1, 3, 56, 56)).shape
-# %%
-mnist_pvr_train[0]
-# %%

@@ -12,6 +12,8 @@ from PIL import Image
 from typing import Optional
 from transformer_lens.hook_points import HookedRootModule, HookPoint
 
+DEVICE = t.device('cuda' if t.cuda.is_available() else 'cpu')
+
 # %%
 
 mnist_train = datasets.MNIST("./data", download=True)
@@ -61,8 +63,8 @@ class ImagePVRDataset(Dataset):
 
         base_label = self.base_dataset[index][1]
         pointer = self.class_map[base_label]
-        new_label = self.base_dataset[index + pointer][1]
-        intermediate_vars = [self.base_dataset[index + i][1] for i in range(4)]
+        new_label = t.tensor(self.base_dataset[index + pointer][1])
+        intermediate_vars = t.tensor([self.base_dataset[index + i][1] for i in range(4)], dtype=t.long)
         return new_image, new_label, intermediate_vars
     
     def __len__(self):
@@ -79,22 +81,24 @@ class MNIST_PVR_HL(HookedRootModule):
     """
     A high-level implementation of the algorithm used for MNIST_PVR
     """
-    def __init__(self, class_map=MNIST_CLASS_MAP):
+    def __init__(self, class_map=MNIST_CLASS_MAP, device=DEVICE):
         super().__init__()
         self.hook_tl = HookPoint()
         self.hook_tr = HookPoint()
         self.hook_bl = HookPoint()
         self.hook_br = HookPoint()
-        self.class_map = t.tensor([class_map[i] for i in range(len(class_map))], dtype=t.long)
+        self.class_map = t.tensor([class_map[i] for i in range(len(class_map))], dtype=t.long, device=device)
         self.setup()
 
     def forward(self, args):
         input, label, intermediate_data = args
-        tl, tr, bl, br = intermediate_data
-        tl = self.hook_tl(t.tensor(tl, dtype=t.long))
-        tr = self.hook_tr(t.tensor(tr, dtype=t.long))
-        bl = self.hook_bl(t.tensor(bl, dtype=t.long))
-        br = self.hook_br(t.tensor(br, dtype=t.long))
+        # print([a.shape for a in args])
+        tl, tr, bl, br = [intermediate_data[:, i] for i in range(4)]
+        # print(f"intermediate_data is a {type(intermediate_data)}; tl is a {type(tl)}")
+        tl = self.hook_tl(tl)
+        tr = self.hook_tr(tr)
+        bl = self.hook_bl(bl)
+        br = self.hook_br(br)
         pointer = self.class_map[(tl,)] - 1
         # TODO fix to support batching
         tr_bl_br = t.stack([tr, bl, br], dim=0)
