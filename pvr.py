@@ -85,7 +85,7 @@ class MNIST_PVR_HL(HookedRootModule):
         self.hook_tr = HookPoint()
         self.hook_bl = HookPoint()
         self.hook_br = HookPoint()
-        self.class_map = class_map
+        self.class_map = t.tensor([class_map[i] for i in range(len(class_map))], dtype=t.long)
         self.setup()
 
     def forward(self, args):
@@ -95,8 +95,10 @@ class MNIST_PVR_HL(HookedRootModule):
         tr = self.hook_tr(t.tensor(tr, dtype=t.long))
         bl = self.hook_bl(t.tensor(bl, dtype=t.long))
         br = self.hook_br(t.tensor(br, dtype=t.long))
-        pointer = self.class_map[tl.item()]
-        return [tr, bl, br][pointer - 1]
+        pointer = self.class_map[(tl,)] - 1
+        # TODO fix to support batching
+        tr_bl_br = t.stack([tr, bl, br], dim=0)
+        return tr_bl_br[pointer, range(len(pointer))]
 
 # %%
 hl = MNIST_PVR_HL()

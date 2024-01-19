@@ -4,7 +4,7 @@ from dataclasses import dataclass
 import numpy as np
 import torch as t
 from torch import Tensor
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, DataLoader
 import torchvision
 import transformer_lens as tl
 from transformer_lens.hook_points import HookedRootModule, HookPoint
@@ -43,7 +43,7 @@ class HLNode():
 @dataclass
 class LLNode():
     name: HookName
-    index: Optional[int]
+    index: TorchIndex
     subspace: Optional[t.Tensor]=None
 
     def __eq__(self, other):
@@ -114,27 +114,34 @@ class IITModelPair():
         return out
     
     # TODO extend to position and subspace...
-    def ll_ablation_hook(self,hook_point_out:Tensor, hook:HookPoint) -> Tensor:
-        out = self.ll_cache[hook.name]
-        return out
+    def make_ll_ablation_hook(self, ll_node:LLNode) -> Callable[[Tensor, HookPoint], Tensor]:
+        if ll_node.subspace is not None:
+            raise NotImplementedError
+        def ll_ablation_hook(hook_point_out:Tensor, hook:HookPoint) -> Tensor:
+            out = hook_point_out.clone()
+            out[ll_node.index.as_index] = self.ll_cache[hook.name][ll_node.index.as_index]
+            return out
+        return ll_ablation_hook
 
     def do_intervention(self, base_input, ablation_input, hl_node:HookName):
         ablation_x, ablation_y, ablation_intermediate_vars = ablation_input
         base_x, base_y, base_intermediate_vars = base_input
         hl_ablation_output, self.hl_cache = self.hl_model.run_with_cache(ablation_input)
+        assert all(hl_ablation_output == ablation_y), f"Ablation output {hl_ablation_output} does not match label {ablation_y}"
         ll_ablation_output, self.ll_cache = self.ll_model.run_with_cache(ablation_x)
 
         ll_nodes = self.corr[hl_node]
 
         hl_output = self.hl_model.run_with_hooks(base_input, fwd_hooks=[(hl_node, self.hl_ablation_hook)])
-        ll_output = self.ll_model.run_with_hooks(base_x, fwd_hooks=[(ll_node.name, self.ll_ablation_hook) for ll_node in ll_nodes])
+        ll_output = self.ll_model.run_with_hooks(base_x, fwd_hooks=[(ll_node.name, self.make_ll_ablation_hook(ll_node)) for ll_node in ll_nodes])
 
         return hl_output, ll_output
 
     def train(self, base_data, ablation_data, epochs=1000, use_wandb=False):
+        training_args = self.training_args
         dataset = IITDataset(base_data, ablation_data)
-        loader = t.utils.data.DataLoader(dataset, batch_size=1, shuffle=True)
-        optimizer = t.optim.Adam(self.ll_model.parameters(), lr=self.training_args['lr'])
+        loader = DataLoader(dataset, batch_size=training_args['batch_size'], shuffle=True)
+        optimizer = t.optim.Adam(self.ll_model.parameters(), lr=training_args['lr'])
         loss_fn = t.nn.CrossEntropyLoss()
 
         if use_wandb:
@@ -142,7 +149,7 @@ class IITModelPair():
 
         for epoch in range(epochs):
             losses = []
-            for i, (base_input, ablation_input) in tqdm(enumerate(loader)):
+            for i, (base_input, ablation_input) in tqdm(enumerate(loader), total=len(loader)):
                 optimizer.zero_grad()
                 self.hl_model.requires_grad_(False)
                 self.ll_model.train()
@@ -170,7 +177,8 @@ wrapped_r18 = HookedModuleWrapper(resnet18, name='resnet18', recursive=True, hoo
 # %%
 
 training_args = {
-    'lr': 0.001
+    'lr': 0.001,
+    'batch_size': 32,
 }
 
 corr = {
