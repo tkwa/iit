@@ -1,4 +1,5 @@
 # %%
+import dataclasses
 from dataclasses import dataclass
 import numpy as np
 import torch as t
@@ -11,8 +12,10 @@ import networkx as nx
 from wrapper import HookedModuleWrapper
 from typing import Callable, Optional
 import wandb
+from tqdm import tqdm
 
 from pvr import mnist_pvr_train, mnist_pvr_test, MNIST_PVR_HL
+from index import TorchIndex, Ix
 
 
 # %%
@@ -41,7 +44,13 @@ class HLNode():
 class LLNode():
     name: HookName
     index: Optional[int]
-    subspace: Optional[t.Tensor]
+    subspace: Optional[t.Tensor]=None
+
+    def __eq__(self, other):
+        return isinstance(other, LLNode) and dataclasses.astuple(self) == dataclasses.astuple(other)
+
+    def __hash__(self):
+        return hash(dataclasses.astuple(self))
 
 class IITDataset(Dataset):
     """
@@ -85,7 +94,7 @@ class IITModelPair():
         self.hl_model = hl_model
         self.ll_model = ll_model
 
-        self.corr = corr
+        self.corr:dict[HLNode, set[LLNode]] = corr
         assert all([k in self.hl_model.hook_dict for k in self.corr.keys()])
         self.rng = np.random.default_rng(seed)
         self.training_args = training_args
@@ -96,35 +105,35 @@ class IITModelPair():
     def set_corr(self, corr):
         self.corr = corr
 
-    def sample_hl_name(self):
-        return self.rng.choice(list(self.corr.keys()))
+    def sample_hl_name(self) -> str:
+        # return a `str` rather than `numpy.str_`
+        return str(self.rng.choice(list(self.corr.keys())))
 
     def hl_ablation_hook(self,hook_point_out:Tensor, hook:HookPoint) -> Tensor:
         out = self.hl_cache[hook.name]
         return out
     
+    # TODO extend to position and subspace...
     def ll_ablation_hook(self,hook_point_out:Tensor, hook:HookPoint) -> Tensor:
         out = self.ll_cache[hook.name]
         return out
 
     def do_intervention(self, base_input, ablation_input, hl_node:HookName):
-        base_x, base_y, base_intermediate_vars = base_input
         ablation_x, ablation_y, ablation_intermediate_vars = ablation_input
+        base_x, base_y, base_intermediate_vars = base_input
         hl_ablation_output, self.hl_cache = self.hl_model.run_with_cache(ablation_input)
-        ll_ablation_output, self.ll_cache = self.ll_model.run_with_cache(ablation_input)
+        ll_ablation_output, self.ll_cache = self.ll_model.run_with_cache(ablation_x)
 
-        hl_name = self.sample_hl_name()
-        ll_names = self.corr(hl_name)
+        ll_nodes = self.corr[hl_node]
 
-        hl_output = self.hl_model.run_with_hooks(base_input, [(hl_name, self.hl_ablation_hook)])
-        ll_output = self.ll_model.run_with_hooks(base_input, [(ll_name, self.ll_ablation_hook) for ll_name in ll_names])
+        hl_output = self.hl_model.run_with_hooks(base_input, fwd_hooks=[(hl_node, self.hl_ablation_hook)])
+        ll_output = self.ll_model.run_with_hooks(base_x, fwd_hooks=[(ll_node.name, self.ll_ablation_hook) for ll_node in ll_nodes])
 
         return hl_output, ll_output
 
     def train(self, base_data, ablation_data, epochs=1000, use_wandb=False):
         dataset = IITDataset(base_data, ablation_data)
-        print(self.ll_model)
-        print(list(self.ll_model.parameters()))
+        loader = t.utils.data.DataLoader(dataset, batch_size=1, shuffle=True)
         optimizer = t.optim.Adam(self.ll_model.parameters(), lr=self.training_args['lr'])
         loss_fn = t.nn.CrossEntropyLoss()
 
@@ -133,19 +142,17 @@ class IITModelPair():
 
         for epoch in range(epochs):
             losses = []
-            for i in range(len(dataset)):
+            for i, (base_input, ablation_input) in tqdm(enumerate(loader)):
                 optimizer.zero_grad()
                 self.hl_model.requires_grad_(False)
                 self.ll_model.train()
-                # sample one base and one ablation datapoint
-                base_input, ablation_input = dataset[i]
 
                 # sample a high-level variable to ablate
                 hl_node = self.sample_hl_name()
                 hl_output, ll_output = self.do_intervention(base_input, ablation_input, hl_node)
                 loss = loss_fn(ll_output, hl_output)
                 loss.backward()
-                print(f"{ll_output=}, {hl_output=}")
+                # print(f"{ll_output=}, {hl_output=}")
                 losses.append(loss.item())
                 optimizer.step()
             print(f"Epoch {epoch}: {np.mean(losses)}")
@@ -154,7 +161,9 @@ class IITModelPair():
 
 
 # %%
-            
+
+hl_model = MNIST_PVR_HL()
+
 resnet18 = torchvision.models.resnet18(pretrained=False) # 11M parameters
 wrapped_r18 = HookedModuleWrapper(resnet18, name='resnet18', recursive=True, hook_self=False)
 
@@ -164,11 +173,18 @@ training_args = {
     'lr': 0.001
 }
 
+corr = {
+    'hook_tl': {LLNode('mod.maxpool.hook_point', Ix[None, None, :28, :28])},
+}
 
-model_pair = IITModelPair(hl_model=MNIST_PVR_HL(), ll_model=wrapped_r18, seed=0, training_args=training_args)
+
+model_pair = IITModelPair(hl_model, ll_model=wrapped_r18, corr=corr, seed=0, training_args=training_args)
 model_pair.train(mnist_pvr_train, mnist_pvr_train, epochs=10)
 
+print(f"done training")
 # %%
 
 wrapped_r18(t.randn(1, 3, 56, 56)).shape
+# %%
+mnist_pvr_train[0]
 # %%

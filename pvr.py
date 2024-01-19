@@ -62,7 +62,7 @@ class ImagePVRDataset(Dataset):
         base_label = self.base_dataset[index][1]
         pointer = self.class_map[base_label]
         new_label = self.base_dataset[index + pointer][1]
-        intermediate_vars = (self.base_dataset[index + i][1] for i in range(0, 3))
+        intermediate_vars = [self.base_dataset[index + i][1] for i in range(4)]
         return new_image, new_label, intermediate_vars
     
     def __len__(self):
@@ -88,14 +88,15 @@ class MNIST_PVR_HL(HookedRootModule):
         self.class_map = class_map
         self.setup()
 
-    def forward(self, intermediate_data):
+    def forward(self, args):
+        input, label, intermediate_data = args
         tl, tr, bl, br = intermediate_data
-        tl = self.hook_tl(tl)
-        tr = self.hook_tr(tr)
-        bl = self.hook_bl(bl)
-        br = self.hook_br(br)
-        pointer = self.class_map[tl]
-        return [tr, bl, br][pointer]
+        tl = self.hook_tl(t.tensor(tl, dtype=t.long))
+        tr = self.hook_tr(t.tensor(tr, dtype=t.long))
+        bl = self.hook_bl(t.tensor(bl, dtype=t.long))
+        br = self.hook_br(t.tensor(br, dtype=t.long))
+        pointer = self.class_map[tl.item()]
+        return [tr, bl, br][pointer - 1]
 
 # %%
 hl = MNIST_PVR_HL()
