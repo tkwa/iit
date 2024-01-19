@@ -28,15 +28,22 @@ class ImagePVRDataset(Dataset):
     Images are concatenated into a 2x2 square.
     The label is the class of the image in position class_map[label of top left].
     """
-    def __init__(self, base_dataset, class_map:Optional[dict[int, int]]=None, seed=0, use_cache=False):
+    def __init__(self, base_dataset, class_map:dict[int, int]=MNIST_CLASS_MAP, seed=0, use_cache=False, length=200000, iid=True):
         self.base_dataset = base_dataset
-        if class_map is None:
-            class_map = MNIST_CLASS_MAP
         self.class_map = class_map
         self.rng = np.random.default_rng(seed)
         assert all(v in {1, 2, 3} for v in class_map.values())
         self.cache = {}
-        self.use_cache=use_cache
+        self.use_cache = False
+        self.length = length
+        self.iid = iid
+        if use_cache:
+            for i in range(len(self)):
+                self.cache[i] = self[i]
+            self.use_cache = True
+        if not self.iid:
+            print("WARNING: using non-iid mode")
+            assert len(self.base_dataset) >= 4*self.length, "Dataset is too small for non-iid mode"
 
     @staticmethod
     def concatenate_2x2(images):
@@ -57,24 +64,28 @@ class ImagePVRDataset(Dataset):
     def __getitem__(self, index):
         if index in self.cache and self.use_cache:
             return self.cache[index]
-        images = [self.base_dataset[i][0] for i in range(index, index + 4)]
+        if self.iid:
+            base_items = [self.base_dataset[self.rng.integers(0, len(self.base_dataset))] for i in range(4)]
+        else:
+            base_items = [self.base_dataset[i] for i in range(index * 4, index * 4 + 4)]
+        images = [base_item[0] for base_item in base_items]
         new_image = self.concatenate_2x2(images)
         new_image = torchvision.transforms.functional.to_tensor(new_image)
 
-        base_label = self.base_dataset[index][1]
+        base_label = base_items[0][1]
         pointer = self.class_map[base_label]
-        new_label = t.tensor(self.base_dataset[index + pointer][1])
-        intermediate_vars = t.tensor([self.base_dataset[index + i][1] for i in range(4)], dtype=t.long)
+        new_label = t.tensor(base_items[pointer][1])
+        intermediate_vars = t.tensor([base_items[i][1] for i in range(4)], dtype=t.long)
         return new_image, new_label, intermediate_vars
     
     def __len__(self):
-        return len(self.base_dataset) // 4
+        return self.length
 
 
 # %%
 
-mnist_pvr_train = ImagePVRDataset(mnist_train, None)
-mnist_pvr_test = ImagePVRDataset(mnist_test, None)
+mnist_pvr_train = ImagePVRDataset(mnist_train, length=200000)
+mnist_pvr_test = ImagePVRDataset(mnist_test, length=20000)
 # %%
 
 class MNIST_PVR_HL(HookedRootModule):
