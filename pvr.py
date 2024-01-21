@@ -28,9 +28,10 @@ class ImagePVRDataset(Dataset):
     Images are concatenated into a 2x2 square.
     The label is the class of the image in position class_map[label of top left].
     """
-    def __init__(self, base_dataset, class_map:dict[int, int]=MNIST_CLASS_MAP, seed=0, use_cache=False, length=200000, iid=True):
+    def __init__(self, base_dataset, class_map:dict[int, int]=MNIST_CLASS_MAP, seed=0, use_cache=True, length=200000, iid=True):
         self.base_dataset = base_dataset
         self.class_map = class_map
+        self.seed=seed
         self.rng = np.random.default_rng(seed)
         assert all(v in {1, 2, 3} for v in class_map.values())
         self.cache = {}
@@ -38,8 +39,6 @@ class ImagePVRDataset(Dataset):
         self.length = length
         self.iid = iid
         if use_cache:
-            for i in range(len(self)):
-                self.cache[i] = self[i]
             self.use_cache = True
         if not self.iid:
             print("WARNING: using non-iid mode")
@@ -65,6 +64,7 @@ class ImagePVRDataset(Dataset):
         if index in self.cache and self.use_cache:
             return self.cache[index]
         if self.iid:
+            self.rng = np.random.default_rng(self.seed * self.length + index)
             base_items = [self.base_dataset[self.rng.integers(0, len(self.base_dataset))] for i in range(4)]
         else:
             base_items = [self.base_dataset[i] for i in range(index * 4, index * 4 + 4)]
@@ -76,7 +76,10 @@ class ImagePVRDataset(Dataset):
         pointer = self.class_map[base_label]
         new_label = t.tensor(base_items[pointer][1])
         intermediate_vars = t.tensor([base_items[i][1] for i in range(4)], dtype=t.long)
-        return new_image, new_label, intermediate_vars
+        ret = new_image, new_label, intermediate_vars
+        if self.use_cache:
+            self.cache[index] = ret
+        return ret
     
     def __len__(self):
         return self.length
@@ -118,4 +121,15 @@ class MNIST_PVR_HL(HookedRootModule):
 # %%
 hl = MNIST_PVR_HL()
 hl.hook_dict
+# %%
+
+def visualize_datapoint(dataset, index):
+    image, label, intermediate_vars = dataset[index]
+    print(f"Label: {label}")
+    print(f"Intermediate vars: {intermediate_vars}")
+    print(f"Image shape: {image.shape}")
+    image = torchvision.transforms.functional.to_pil_image(image)
+    image.show()
+
+visualize_datapoint(mnist_pvr_train, 3)
 # %%

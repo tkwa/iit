@@ -41,7 +41,7 @@ class TorchIndex:
     def __eq__(self, other):
         return self.hashable_tuple == other.hashable_tuple
 
-    def __repr__(self) -> str: # graphviz, an old library used to dislike actual colons in strings, but this shouldn't be an issue anymore
+    def __repr__(self) -> str:
         ret = "["
         for idx, x in enumerate(self.hashable_tuple):
             if idx > 0:
@@ -50,7 +50,8 @@ class TorchIndex:
                 ret += ":"
             elif type(x) == int:
                 ret += str(x)
-            elif type(x) == slice:
+            elif x[0] == slice:
+                x = slice(*x[1])
                 ret += (str(x.start) if x.start is not None else "") + ":" + (str(x.stop) if x.stop is not None else "")
                 assert x.step is None, "Step is not supported"
             else:

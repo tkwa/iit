@@ -125,7 +125,7 @@ class IITModelPair():
             return out
         return ll_ablation_hook
 
-    def do_intervention(self, base_input, ablation_input, hl_node:HookName):
+    def do_intervention(self, base_input, ablation_input, hl_node:HookName, verbose=False):
         ablation_x, ablation_y, ablation_intermediate_vars = ablation_input
         base_x, base_y, base_intermediate_vars = base_input
         hl_ablation_output, self.hl_cache = self.hl_model.run_with_cache(ablation_input)
@@ -137,6 +137,22 @@ class IITModelPair():
         hl_output = self.hl_model.run_with_hooks(base_input, fwd_hooks=[(hl_node, self.hl_ablation_hook)])
         ll_output = self.ll_model.run_with_hooks(base_x, fwd_hooks=[(ll_node.name, self.make_ll_ablation_hook(ll_node)) for ll_node in ll_nodes])
 
+        if verbose:
+            ablation_x_image = torchvision.transforms.functional.to_pil_image(ablation_x[0])
+            ablation_x_image.show()
+            print(f"{ablation_x_image=}, {ablation_y.item()=}, {ablation_intermediate_vars=}")
+            base_x_image = torchvision.transforms.functional.to_pil_image(base_x[0])
+            base_x_image.show()
+            print(f"{base_x_image=}, {base_y.item()=}, {base_intermediate_vars=}")
+            print(f"{hl_ablation_output=}, {ll_ablation_output.shape=}")
+            print(f"{hl_node=}, {ll_nodes=}")
+            print(f"{hl_output=}")
+        return hl_output, ll_output
+    
+    def no_intervention(self, base_input):
+        base_x, base_y, base_intermediate_vars = base_input
+        hl_output = self.hl_model(base_input)
+        ll_output = self.ll_model(base_x)
         return hl_output, ll_output
 
     def train(self, base_data, ablation_data, test_base_data, test_ablation_data, epochs=1000, use_wandb=False):
@@ -163,6 +179,7 @@ class IITModelPair():
                 # sample a high-level variable to ablate
                 hl_node = self.sample_hl_name()
                 hl_output, ll_output = self.do_intervention(base_input, ablation_input, hl_node)
+                # hl_output, ll_output = self.no_intervention(base_input)
                 loss = loss_fn(ll_output, hl_output)
                 loss.backward()
                 # print(f"{ll_output=}, {hl_output=}")
@@ -170,18 +187,23 @@ class IITModelPair():
                 optimizer.step()
             # now calculate test loss
             test_losses = []
+            accuracies = []
             self.ll_model.eval()
             self.hl_model.requires_grad_(False)
             for i, (base_input, ablation_input) in enumerate(test_loader):
                 base_input = [t.to(DEVICE) for t in base_input]
                 ablation_input = [t.to(DEVICE) for t in ablation_input]
                 hl_output, ll_output = self.do_intervention(base_input, ablation_input, hl_node)
+                # hl_output, ll_output = self.no_intervention(base_input)
                 loss = loss_fn(ll_output, hl_output)
+                top1 = t.argmax(ll_output, dim=1)
+                accuracy = (top1 == hl_output).float().mean()
+                accuracies.append(accuracy.item())
                 test_losses.append(loss.item())
-            print(f"Epoch {epoch}: {np.mean(losses):.4f}, {np.mean(test_losses):.4f}")
+            print(f"Epoch {epoch}: {np.mean(losses):.4f}, {np.mean(test_losses):.4f}, {np.mean(accuracies)*100:.4f}%")
 
             if use_wandb:
-                wandb.log({'train loss': np.mean(losses), 'test loss': np.mean(test_losses), 'epoch': epoch})
+                wandb.log({'train loss': np.mean(losses), 'test loss': np.mean(test_losses), 'accuracy': np.mean(accuracies), 'epoch': epoch})
 
 
 # %%
@@ -200,10 +222,21 @@ training_args = {
 }
 
 corr = {
-    'hook_tl': {LLNode('mod.maxpool.hook_point', Ix[None, None, :28, :28])},
+    'hook_tl': {LLNode('mod.conv1.hook_point', Ix[None, None, :28, :28])},
+    'hook_tr': {LLNode('mod.conv1.hook_point', Ix[None, None, :28, 28:])},
+    'hook_bl': {LLNode('mod.conv1.hook_point', Ix[None, None, 28:, :28])},
+    'hook_br': {LLNode('mod.conv1.hook_point', Ix[None, None, 28:, 28:])},
 }
 
 model_pair = IITModelPair(hl_model, ll_model=wrapped_r18, corr=corr, seed=0, training_args=training_args)
+
+dataset = IITDataset(mnist_pvr_train, mnist_pvr_train)
+loader = DataLoader(dataset, batch_size=1, shuffle=True, num_workers=4)
+base_input, ablation_input = next(iter(loader))
+base_input = [t.to(DEVICE) for t in base_input]
+ablation_input = [t.to(DEVICE) for t in ablation_input]
+_ = model_pair.do_intervention(base_input, ablation_input, 'hook_tl', verbose=True)
+# %%
 model_pair.train(mnist_pvr_train, mnist_pvr_train, mnist_pvr_test, mnist_pvr_test, epochs=1000, use_wandb=True)
 
 print(f"done training")
