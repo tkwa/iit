@@ -7,10 +7,14 @@ class HookedModuleWrapper(HookedRootModule):
     """
     Wraps any module, adding a hook after the output.
     """
-    def __init__(self, mod:t.nn.Module, name='model', recursive=False, hook_self=True, top_level=True):
+    def __init__(self, mod:t.nn.Module, name='model', recursive=False, hook_self=True, top_level=True, hook_pre=False):
         super().__init__()
         self.mod = mod # deepcopy(mod)
         self.hook_self = hook_self
+        self.hook_pre = hook_pre
+        if hook_pre:
+            self.hook_pre = HookPoint()
+            self.hook_pre.name = name + 'pre'
         if hook_self:
             hook_point = HookPoint()
             hook_point.name = name
@@ -38,8 +42,11 @@ class HookedModuleWrapper(HookedRootModule):
             self.mod.__setattr__(key, new_submod)
 
     def forward(self, *args, **kwargs):
-       result = self.mod.forward(*args, **kwargs)
-       if not self.hook_self:
-           return result
-       assert isinstance(result, Tensor)
-       return self.hook_point(result)
+        if self.hook_pre:
+            result = self.mod.forward(self.hook_pre(*args, **kwargs))
+        else:
+            result = self.mod.forward(*args, **kwargs)
+        if not self.hook_self:
+            return result
+        assert isinstance(result, Tensor)
+        return self.hook_point(result)

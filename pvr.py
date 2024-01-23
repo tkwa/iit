@@ -8,7 +8,7 @@ import torchvision.datasets as datasets
 import torch as t
 import torchvision
 from torch.utils.data import Dataset
-from PIL import Image
+from PIL import Image, ImageOps
 from typing import Optional
 from transformer_lens.hook_points import HookedRootModule, HookPoint
 
@@ -28,7 +28,7 @@ class ImagePVRDataset(Dataset):
     Images are concatenated into a 2x2 square.
     The label is the class of the image in position class_map[label of top left].
     """
-    def __init__(self, base_dataset, class_map:dict[int, int]=MNIST_CLASS_MAP, seed=0, use_cache=True, length=200000, iid=True):
+    def __init__(self, base_dataset, class_map:dict[int, int]=MNIST_CLASS_MAP, seed=0, use_cache=True, length=200000, iid=True, pad_size=0):
         self.base_dataset = base_dataset
         self.class_map = class_map
         self.seed=seed
@@ -38,6 +38,7 @@ class ImagePVRDataset(Dataset):
         self.use_cache = False
         self.length = length
         self.iid = iid
+        self.pad_size = pad_size
         if use_cache:
             self.use_cache = True
         if not self.iid:
@@ -69,6 +70,9 @@ class ImagePVRDataset(Dataset):
         else:
             base_items = [self.base_dataset[i] for i in range(index * 4, index * 4 + 4)]
         images = [base_item[0] for base_item in base_items]
+        if self.pad_size > 0:
+            images = [ImageOps.expand(image, border=self.pad_size, fill='black') for image in images]
+            # print(f"Padding images by {self.pad_size}")
         new_image = self.concatenate_2x2(images)
         new_image = torchvision.transforms.functional.to_tensor(new_image)
 
@@ -87,8 +91,8 @@ class ImagePVRDataset(Dataset):
 
 # %%
 
-mnist_pvr_train = ImagePVRDataset(mnist_train, length=200000)
-mnist_pvr_test = ImagePVRDataset(mnist_test, length=20000)
+mnist_pvr_train = ImagePVRDataset(mnist_train, length=200000, pad_size=7) # because first conv layer is 7
+mnist_pvr_test = ImagePVRDataset(mnist_test, length=20000, pad_size=7)
 # %%
 
 class MNIST_PVR_HL(HookedRootModule):

@@ -14,7 +14,7 @@ from typing import Callable, Optional
 import wandb
 from tqdm import tqdm
 
-from pvr import mnist_pvr_train, mnist_pvr_test, MNIST_PVR_HL
+from pvr import mnist_train, mnist_test, MNIST_PVR_HL, ImagePVRDataset
 from index import TorchIndex, Ix
 
 DEVICE = t.device('cuda' if t.cuda.is_available() else 'cpu')
@@ -157,6 +157,7 @@ class IITModelPair():
 
     def train(self, base_data, ablation_data, test_base_data, test_ablation_data, epochs=1000, use_wandb=False):
         training_args = self.training_args
+        print(f"{training_args=}")
         dataset = IITDataset(base_data, ablation_data)
         test_dataset = IITDataset(test_base_data, test_ablation_data)
         loader = DataLoader(dataset, batch_size=training_args['batch_size'], shuffle=True, num_workers=training_args['num_workers'])
@@ -217,15 +218,22 @@ wrapped_r18 = HookedModuleWrapper(resnet18, name='resnet18', recursive=True, hoo
 
 training_args = {
     'batch_size': 256,
-    'lr': 0.005,
+    'lr': 0.001,
     'num_workers': 4,
 }
 
+mnist_size = 28
+pad_size = 7
+quadrant_size = (mnist_size + pad_size * 2) // 2 # conv has stride 2
+
+mnist_pvr_train = ImagePVRDataset(mnist_train, length=60000, pad_size=pad_size) # because first conv layer is 7
+mnist_pvr_test = ImagePVRDataset(mnist_test, length=6000, pad_size=pad_size)
+
 corr = {
-    'hook_tl': {LLNode('mod.conv1.hook_point', Ix[None, None, :28, :28])},
-    'hook_tr': {LLNode('mod.conv1.hook_point', Ix[None, None, :28, 28:])},
-    'hook_bl': {LLNode('mod.conv1.hook_point', Ix[None, None, 28:, :28])},
-    'hook_br': {LLNode('mod.conv1.hook_point', Ix[None, None, 28:, 28:])},
+    'hook_tl': {LLNode('mod.conv1.hook_point', Ix[None, None, :quadrant_size, :quadrant_size])},
+    'hook_tr': {LLNode('mod.conv1.hook_point', Ix[None, None, :quadrant_size, quadrant_size:])},
+    'hook_bl': {LLNode('mod.conv1.hook_point', Ix[None, None, quadrant_size:, :quadrant_size])},
+    'hook_br': {LLNode('mod.conv1.hook_point', Ix[None, None, quadrant_size:, quadrant_size:])},
 }
 
 model_pair = IITModelPair(hl_model, ll_model=wrapped_r18, corr=corr, seed=0, training_args=training_args)
@@ -235,7 +243,7 @@ loader = DataLoader(dataset, batch_size=1, shuffle=True, num_workers=4)
 base_input, ablation_input = next(iter(loader))
 base_input = [t.to(DEVICE) for t in base_input]
 ablation_input = [t.to(DEVICE) for t in ablation_input]
-_ = model_pair.do_intervention(base_input, ablation_input, 'hook_tl', verbose=True)
+# _ = model_pair.do_intervention(base_input, ablation_input, 'hook_tl', verbose=True)
 # %%
 model_pair.train(mnist_pvr_train, mnist_pvr_train, mnist_pvr_test, mnist_pvr_test, epochs=1000, use_wandb=True)
 
