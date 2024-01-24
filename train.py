@@ -219,7 +219,7 @@ wrapped_r18 = HookedModuleWrapper(resnet18, name='resnet18', recursive=True, hoo
 training_args = {
     'batch_size': 256,
     'lr': 0.001,
-    'num_workers': 4,
+    'num_workers': 0,
 }
 
 mnist_size = 28
@@ -239,12 +239,17 @@ corr = {
 model_pair = IITModelPair(hl_model, ll_model=wrapped_r18, corr=corr, seed=0, training_args=training_args)
 
 dataset = IITDataset(mnist_pvr_train, mnist_pvr_train)
-loader = DataLoader(dataset, batch_size=1, shuffle=True, num_workers=4)
+loader = DataLoader(dataset, batch_size=1, shuffle=True)
+# print(len(loader))
+# for i in loader:
+#     print(i)
+#     break
+# %%
 base_input, ablation_input = next(iter(loader))
 base_input = [t.to(DEVICE) for t in base_input]
 ablation_input = [t.to(DEVICE) for t in ablation_input]
-# _ = model_pair.do_intervention(base_input, ablation_input, 'hook_tl', verbose=True)
+_ = model_pair.do_intervention(base_input, ablation_input, 'hook_tl', verbose=True)
 # %%
-model_pair.train(mnist_pvr_train, mnist_pvr_train, mnist_pvr_test, mnist_pvr_test, epochs=1000, use_wandb=True)
+model_pair.train(mnist_pvr_train, mnist_pvr_train, mnist_pvr_test, mnist_pvr_test, epochs=1000, use_wandb=False)
 
 print(f"done training")

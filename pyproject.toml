@@ -6,7 +6,7 @@ authors = ["tkwa <kwathomas0@gmail.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.11"
+python = "^3.10"
 torch = "^2.1.2"
 transformer-lens = "^1.12.1"
 networkx = "^3.2.1"

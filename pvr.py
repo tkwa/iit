@@ -135,5 +135,5 @@ def visualize_datapoint(dataset, index):
     image = torchvision.transforms.functional.to_pil_image(image)
     image.show()
 
-visualize_datapoint(mnist_pvr_train, 3)
+# visualize_datapoint(mnist_pvr_train, 3)
 # %%
