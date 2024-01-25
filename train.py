@@ -225,18 +225,20 @@ training_args = {
 pad_size = 7
 mnist_size = 28
 
-dim_at_hook = 6
-hook_point = 'mod.layer3.mod.1.mod.conv1.hook_point'
+dim_at_hook = 3
+hook_point = 'mod.layer4.mod.1.mod.conv2.hook_point'
 quadrant_size = (dim_at_hook) // 2 # conv has stride 2
+channel_size = 512
+channel_stride = 512 // 4
 
 mnist_pvr_train = ImagePVRDataset(mnist_train, length=60000, pad_size=pad_size) # because first conv layer is 7
 mnist_pvr_test = ImagePVRDataset(mnist_test, length=6000, pad_size=pad_size)
 
 corr = {
-    'hook_tl': {LLNode(hook_point, Ix[None, None, :quadrant_size, :quadrant_size])},
-    'hook_tr': {LLNode(hook_point, Ix[None, None, :quadrant_size, quadrant_size:])},
-    'hook_bl': {LLNode(hook_point, Ix[None, None, quadrant_size:, :quadrant_size])},
-    'hook_br': {LLNode(hook_point, Ix[None, None, quadrant_size:, quadrant_size:])},
+    'hook_tl': {LLNode(hook_point, Ix[None, :channel_stride, :, :])},
+    'hook_tr': {LLNode(hook_point, Ix[None, channel_stride:channel_stride*2, :, :])},
+    'hook_bl': {LLNode(hook_point, Ix[None, channel_stride*2:channel_stride*3, :, :])},
+    'hook_br': {LLNode(hook_point, Ix[None, channel_stride*3:, :, :])},
 }
 
 model_pair = IITModelPair(hl_model, ll_model=wrapped_r18, corr=corr, seed=0, training_args=training_args)
