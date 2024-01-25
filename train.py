@@ -18,7 +18,7 @@ from pvr import mnist_train, mnist_test, MNIST_PVR_HL, ImagePVRDataset
 from index import TorchIndex, Ix
 
 DEVICE = t.device('cuda' if t.cuda.is_available() else 'cpu')
-WANDB_ENTITY = "tkwa-team"
+WANDB_ENTITY = "cybershiptrooper"
 
 # %%
 """
@@ -250,6 +250,6 @@ base_input = [t.to(DEVICE) for t in base_input]
 ablation_input = [t.to(DEVICE) for t in ablation_input]
 _ = model_pair.do_intervention(base_input, ablation_input, 'hook_tl', verbose=True)
 # %%
-model_pair.train(mnist_pvr_train, mnist_pvr_train, mnist_pvr_test, mnist_pvr_test, epochs=1000, use_wandb=False)
+model_pair.train(mnist_pvr_train, mnist_pvr_train, mnist_pvr_test, mnist_pvr_test, epochs=1000, use_wandb=True)
 
 print(f"done training")
