@@ -222,18 +222,21 @@ training_args = {
     'num_workers': 0,
 }
 
-mnist_size = 28
 pad_size = 7
-quadrant_size = (mnist_size + pad_size * 2) // 2 # conv has stride 2
+mnist_size = 28
+
+dim_at_hook = 6
+hook_point = 'mod.layer3.mod.1.mod.conv1.hook_point'
+quadrant_size = (dim_at_hook) // 2 # conv has stride 2
 
 mnist_pvr_train = ImagePVRDataset(mnist_train, length=60000, pad_size=pad_size) # because first conv layer is 7
 mnist_pvr_test = ImagePVRDataset(mnist_test, length=6000, pad_size=pad_size)
 
 corr = {
-    'hook_tl': {LLNode('mod.conv1.hook_point', Ix[None, None, :quadrant_size, :quadrant_size])},
-    'hook_tr': {LLNode('mod.conv1.hook_point', Ix[None, None, :quadrant_size, quadrant_size:])},
-    'hook_bl': {LLNode('mod.conv1.hook_point', Ix[None, None, quadrant_size:, :quadrant_size])},
-    'hook_br': {LLNode('mod.conv1.hook_point', Ix[None, None, quadrant_size:, quadrant_size:])},
+    'hook_tl': {LLNode(hook_point, Ix[None, None, :quadrant_size, :quadrant_size])},
+    'hook_tr': {LLNode(hook_point, Ix[None, None, :quadrant_size, quadrant_size:])},
+    'hook_bl': {LLNode(hook_point, Ix[None, None, quadrant_size:, :quadrant_size])},
+    'hook_br': {LLNode(hook_point, Ix[None, None, quadrant_size:, quadrant_size:])},
 }
 
 model_pair = IITModelPair(hl_model, ll_model=wrapped_r18, corr=corr, seed=0, training_args=training_args)
