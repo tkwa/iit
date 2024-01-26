@@ -173,19 +173,62 @@ class IITProbeSequentialPair(BaseModelPair):
             # now calculate test loss
             test_losses = []
             accuracies = []
+            probe_losses = []
+            probe_accuracies = []
+            behavior_losses = []
+            behavior_accuracies = []
+
             self.ll_model.eval()
+            for p in self.probes.values():
+                p.eval()
             self.hl_model.requires_grad_(False)
-            for i, (base_input, ablation_input) in enumerate(test_loader):
-                base_input = [t.to(DEVICE) for t in base_input]
-                ablation_input = [t.to(DEVICE) for t in ablation_input]
-                hl_output, ll_output = self.do_intervention(base_input, ablation_input, hl_node)
-                # hl_output, ll_output = self.no_intervention(base_input)
-                loss = loss_fn(ll_output, hl_output)
-                top1 = t.argmax(ll_output, dim=1)
-                accuracy = (top1 == hl_output).float().mean()
-                accuracies.append(accuracy.item())
-                test_losses.append(loss.item())
-            print(f"Epoch {epoch}: {np.mean(losses):.4f}, {np.mean(test_losses):.4f}, {np.mean(accuracies)*100:.4f}%")
+            with t.no_grad():
+                for i, (base_input, ablation_input) in enumerate(test_loader):
+                    hl_node = self.sample_hl_name()
+                    base_input = [t.to(DEVICE) for t in base_input]
+                    ablation_input = [t.to(DEVICE) for t in ablation_input]
+                    hl_output, ll_output = self.do_intervention(base_input, ablation_input, hl_node)
+                    # hl_output, ll_output = self.no_intervention(base_input)
+                    loss = loss_fn(ll_output, hl_output)
+                    top1 = t.argmax(ll_output, dim=1)
+                    accuracy = (top1 == hl_output).float().mean()
+                    accuracies.append(accuracy.item())
+                    test_losses.append(loss.item())
+
+                    # !!! Second forward pass
+                    # add probe losses and accuracies
+                    base_x, base_y, base_intermediate_vars = base_input
+                    out, cache = self.ll_model.run_with_cache(base_x)
+                    behavior_loss = loss_fn(out, base_y)
+                    top1_behavior = t.argmax(out, dim=1)
+                    behavior_accuracy = (top1_behavior == base_y).float().mean()
+                    behavior_losses.append(behavior_loss.item())
+                    behavior_accuracies.append(behavior_accuracy.item())
+                    
+                    for hl_node_name in self.probes.keys():
+                        gt = self.hl_model.get_idx_to_intermediate(hl_node_name)(base_intermediate_vars)
+                        ll_nodes = self.corr[hl_node_name]
+                        if len(ll_nodes) > 1:
+                            raise NotImplementedError
+                        for ll_node in ll_nodes:
+                            probe_in_shape = self.probes[hl_node_name].weight.shape[1:]
+                            probe_out = self.probes[hl_node_name](cache[ll_node.name][ll_node.index.as_index].reshape(-1, *probe_in_shape))
+                            probe_loss += loss_fn(probe_out, gt)
+                            top1 = t.argmax(probe_out, dim=1)
+                            probe_accuracy = (top1 == gt).float().mean()
+                    probe_losses.append(probe_loss.item()/len(self.probes))
+                    probe_accuracies.append(probe_accuracy.item())
+
+            print(f"Epoch {epoch}: {np.mean(losses):.4f}, \n Test: {np.mean(test_losses):.4f}, {np.mean(accuracies)*100:.4f}%, \nProbe: {np.mean(probe_accuracies)*100:.4f}%, {np.mean(probe_losses):.4f}, \nBehavior: {np.mean(behavior_accuracies)*100:.4f}%, {np.mean(behavior_losses):.4f}")
 
             if use_wandb:
-                wandb.log({'train loss': np.mean(losses), 'test loss': np.mean(test_losses), 'accuracy': np.mean(accuracies), 'epoch': epoch})
+                wandb.log({
+                    'train loss': np.mean(losses), 
+                    'test loss': np.mean(test_losses), 
+                    'accuracy': np.mean(accuracies), 
+                    'epoch': epoch, 
+                    'probe loss': np.mean(probe_losses), 
+                    'probe accuracy': np.mean(probe_accuracies),
+                    'behavior loss': behavior_loss.item(),
+                    'behavior accuracy': behavior_accuracy.item(),
+                })
