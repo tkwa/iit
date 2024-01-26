@@ -66,16 +66,16 @@ elif mode == 'q':
         'hook_br': {LLNode(hook_point, Ix[None, None, quadrant_size:, quadrant_size:])},
     }
 
-model_pair = IITModelPair(hl_model, ll_model=wrapped_r18, corr=corr, seed=0, training_args=training_args)
+model_pair = IITProbeSequentialPair(hl_model, ll_model=wrapped_r18, corr=corr, seed=0, training_args=training_args)
 
 dataset = IITDataset(mnist_pvr_train, mnist_pvr_train)
 loader = DataLoader(dataset, batch_size=1, shuffle=True)
 
 # %%
-base_input, ablation_input = next(iter(loader))
-base_input = [t.to(DEVICE) for t in base_input]
-ablation_input = [t.to(DEVICE) for t in ablation_input]
-_ = model_pair.do_intervention(base_input, ablation_input, 'hook_tl', verbose=True)
+# base_input, ablation_input = next(iter(loader))
+# base_input = [t.to(DEVICE) for t in base_input]
+# ablation_input = [t.to(DEVICE) for t in ablation_input]
+# _ = model_pair.do_intervention(base_input, ablation_input, 'hook_tl', verbose=True)
 
 # %%
 model_pair.train(mnist_pvr_train, mnist_pvr_train, mnist_pvr_test, mnist_pvr_test, epochs=1000, use_wandb=False)

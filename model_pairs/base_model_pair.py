@@ -21,6 +21,7 @@ HLCache = dict
 @dataclass
 class HLNode():
     name: HookName
+    num_classes: int
     index: Optional[int]
 
 @dataclass

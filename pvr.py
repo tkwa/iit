@@ -3,6 +3,7 @@
 The MNIST-PVR task. We need to download the MNIST dataset and process it.
 """
 
+from model_pairs.base_model_pair import HookName
 import numpy as np
 import torchvision.datasets as datasets
 import torch as t
@@ -107,6 +108,21 @@ class MNIST_PVR_HL(HookedRootModule):
         self.hook_br = HookPoint()
         self.class_map = t.tensor([class_map[i] for i in range(len(class_map))], dtype=t.long, device=device)
         self.setup()
+
+    def get_idx_to_intermediate(self, name: HookName):
+        """
+        Returns a function that takes in a list of intermediate variables and returns the index of the one to use.
+        """
+        if name == 'hook_tl':
+            return lambda intermediate_vars: intermediate_vars[:, 0]
+        elif name == 'hook_tr':
+            return lambda intermediate_vars: intermediate_vars[:, 1]
+        elif name == 'hook_bl':
+            return lambda intermediate_vars: intermediate_vars[:, 2]
+        elif name == 'hook_br':
+            return lambda intermediate_vars: intermediate_vars[:, 3]
+        else:
+            raise NotImplementedError(name)
 
     def forward(self, args):
         input, label, intermediate_data = args

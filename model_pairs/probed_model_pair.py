@@ -1,11 +1,11 @@
 from .base_model_pair import *
 
-class IITModelPair(BaseModelPair):
+class IITProbeModelPair(BaseModelPair):
     def __init__(self, hl_model:HookedRootModule=None, ll_model:HookedRootModule=None,
-                 hl_graph=None, corr:dict[HLNode, set[LLNode]]={}, seed=0, training_args={}):
+                 hl_graph=None, corr:dict[HLNode, set[LLNode]]={}, seed=0, training_args={},
+                 check_parent=False):
         # TODO change to construct hl_model from graph?
         if hl_model is None:
-            assert hl_graph is not None
             hl_model = self.make_hl_model(hl_graph)
 
         self.hl_model = hl_model
@@ -14,8 +14,43 @@ class IITModelPair(BaseModelPair):
         self.corr:dict[HLNode, set[LLNode]] = corr
         assert all([k in self.hl_model.hook_dict for k in self.corr.keys()])
         self.rng = np.random.default_rng(seed)
+        default_training_args = {
+                        'batch_size': 256,
+                        'lr': 0.001,
+                        'num_workers': 0,
+                        'probe_weight': 1.0,
+        }
+        training_args = {**default_training_args, **training_args}
         self.training_args = training_args
+        self.check_parent = check_parent
+        self.probe_cache = {}
 
+    def make_probes(self, input_shape):
+        # create a dummy cache to get hook dimensions
+        print(input_shape)
+        # TODO: remove dummy_cache (can be done using channels from model and index size from corr)
+        out, dummy_cache = self.ll_model.run_with_cache(t.zeros(input_shape, device=DEVICE))
+        print(out.shape)
+        self.probes = {}
+
+        for hl_node, ll_nodes in self.corr.items():
+            if len(ll_nodes) > 1:
+                raise NotImplementedError # should this be all layers' activations flattened into one?
+            for ll_node in ll_nodes:
+                hook_dim = dummy_cache[ll_node.name][ll_node.index.as_index].flatten().shape[0]
+                
+                # print("=======================")
+                # print(ll_node.name, ll_node.index.as_index, dummy_cache[ll_node.name].shape, hook_dim)
+                
+                if ll_node.subspace is None:
+                    self.probes[hl_node] = t.nn.Linear(
+                        in_features=hook_dim, 
+                        out_features=10, # TODO: Remove hardcoding 
+                        bias=False).to(DEVICE)
+                else:
+                    raise NotImplementedError
+        print("made probes", [(k, p.weight.shape) for k, p in self.probes.items()])
+    
     def make_hl_model(self, hl_graph):
         raise NotImplementedError
 
@@ -31,12 +66,18 @@ class IITModelPair(BaseModelPair):
         return out
     
     # TODO extend to position and subspace...
-    def make_ll_ablation_hook(self, ll_node:LLNode) -> Callable[[Tensor, HookPoint], Tensor]:
+    def make_ll_ablation_hook(self, ll_node:LLNode, hl_name: HookName) -> Callable[[Tensor, HookPoint], Tensor]:
         if ll_node.subspace is not None:
             raise NotImplementedError
         def ll_ablation_hook(hook_point_out:Tensor, hook:HookPoint) -> Tensor:
-            out = hook_point_out.clone()
+            out = hook_point_out.clone() 
             out[ll_node.index.as_index] = self.ll_cache[hook.name][ll_node.index.as_index]
+            # out = out.clone()
+            hl_node_name = hl_name
+            probe_output = self.probes[hl_node_name](
+                (out[ll_node.index.as_index]).reshape(self.training_args['batch_size'], -1)
+                )
+            self.probe_cache[hl_node_name] = probe_output
             return out
         return ll_ablation_hook
 
@@ -50,7 +91,7 @@ class IITModelPair(BaseModelPair):
         ll_nodes = self.corr[hl_node]
 
         hl_output = self.hl_model.run_with_hooks(base_input, fwd_hooks=[(hl_node, self.hl_ablation_hook)])
-        ll_output = self.ll_model.run_with_hooks(base_x, fwd_hooks=[(ll_node.name, self.make_ll_ablation_hook(ll_node)) for ll_node in ll_nodes])
+        ll_output = self.ll_model.run_with_hooks(base_x, fwd_hooks=[(ll_node.name, self.make_ll_ablation_hook(ll_node, hl_node)) for ll_node in ll_nodes])
 
         if verbose:
             ablation_x_image = torchvision.transforms.functional.to_pil_image(ablation_x[0])
@@ -64,29 +105,34 @@ class IITModelPair(BaseModelPair):
             print(f"{hl_output=}")
         return hl_output, ll_output
     
-    def no_intervention(self, base_input):
-        base_x, base_y, base_intermediate_vars = base_input
-        hl_output = self.hl_model(base_input)
-        ll_output = self.ll_model(base_x)
-        return hl_output, ll_output
-
     def train(self, base_data, ablation_data, test_base_data, test_ablation_data, epochs=1000, use_wandb=False):
         training_args = self.training_args
         print(f"{training_args=}")
         dataset = IITDataset(base_data, ablation_data)
         test_dataset = IITDataset(test_base_data, test_ablation_data)
+
+        # add to make probes
+        input_shape = (dataset[0][0][0]).unsqueeze(0).shape
+        with t.no_grad():
+            self.make_probes(input_shape)
+        
         loader = DataLoader(dataset, batch_size=training_args['batch_size'], shuffle=True, num_workers=training_args['num_workers'])
         test_loader = DataLoader(test_dataset, batch_size=training_args['batch_size'], shuffle=True, num_workers=training_args['num_workers'])
-        optimizer = t.optim.Adam(self.ll_model.parameters(), lr=training_args['lr'])
+        params = list(self.ll_model.parameters())
+        for p in self.probes.values():
+            params += list(p.parameters())
+        optimizer = t.optim.Adam(params, lr=training_args['lr'])
         loss_fn = t.nn.CrossEntropyLoss()
 
         if use_wandb:
             wandb.init(project="iit", entity=WANDB_ENTITY)
             wandb.config.update(training_args)
-            wandb.config.update({'method': 'IIT'})
+            wandb.config.update({'method': 'IIT + Probes'})
+        torch.autograd.set_detect_anomaly(True)
 
         for epoch in tqdm(range(epochs)):
             losses = []
+            probe_losses = []
             for i, (base_input, ablation_input) in tqdm(enumerate(loader), total=len(loader)):
                 base_input = [t.to(DEVICE) for t in base_input]
                 ablation_input = [t.to(DEVICE) for t in ablation_input]
@@ -98,10 +144,26 @@ class IITModelPair(BaseModelPair):
                 hl_node = self.sample_hl_name()
                 hl_output, ll_output = self.do_intervention(base_input, ablation_input, hl_node)
                 # hl_output, ll_output = self.no_intervention(base_input)
-                loss = loss_fn(ll_output, hl_output)
+                ablation_loss = loss_fn(ll_output, hl_output)
+
+                # add probe losses
+                probe_losses = []
+                for hl_node_name in self.probe_cache.keys():
+                    _, _, intermediate_vars = ablation_input
+                    probe_output = self.probe_cache[hl_node_name]
+                    print(hl_node_name)
+                    gt = self.hl_model.get_idx_to_intermediate(hl_node_name)(intermediate_vars)
+                    print(f"{probe_output.shape}, {gt.shape}, {intermediate_vars.shape}")
+                    probe_loss = loss_fn(probe_output, gt)
+                    probe_losses.append(probe_loss)
+
+                probe_loss = sum(probe_losses)
+                probe_losses.append(probe_loss)
+                loss = ablation_loss + training_args['probe_weight'] * probe_loss
                 loss.backward()
                 # print(f"{ll_output=}, {hl_output=}")
                 losses.append(loss.item())
+                probe_losses.append(probe_loss.item())
                 optimizer.step()
             # now calculate test loss
             test_losses = []
@@ -122,4 +184,3 @@ class IITModelPair(BaseModelPair):
 
             if use_wandb:
                 wandb.log({'train loss': np.mean(losses), 'test loss': np.mean(test_losses), 'accuracy': np.mean(accuracies), 'epoch': epoch})
-

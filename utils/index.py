@@ -68,3 +68,23 @@ class Index:
         return TorchIndex(index)
     
 Ix = Index()
+
+#%%
+
+def get_size(idx: TorchIndex) -> int:
+    """Get the size of the slice"""
+    # calculate the size of the slice
+    # e.g. [None, None, 3] -> 3
+    size = 1
+    for i in idx.as_index:
+        if type(i) == slice:
+            print(i.start, i.stop)
+            start = 0 if i.start is None else i.start
+            stop = 0 if i.stop is None else i.stop
+            size *= stop - start if stop - start > 0 else 1
+        elif type(i) == int:
+            size *= 1
+        else:
+            raise NotImplementedError(i)
+    return size
+    
