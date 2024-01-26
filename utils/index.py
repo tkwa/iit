@@ -68,4 +68,3 @@ class Index:
         return TorchIndex(index)
     
 Ix = Index()
-# %%
