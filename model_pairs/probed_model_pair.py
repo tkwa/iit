@@ -74,8 +74,9 @@ class IITProbeModelPair(BaseModelPair):
             out[ll_node.index.as_index] = self.ll_cache[hook.name][ll_node.index.as_index]
             # out = out.clone()
             hl_node_name = hl_name
+            probe_in_shape = self.probes[hl_node_name].weight.shape[1:]
             probe_output = self.probes[hl_node_name](
-                (out[ll_node.index.as_index]).reshape(self.training_args['batch_size'], -1)
+                (out[ll_node.index.as_index]).reshape(-1, *probe_in_shape)
                 )
             self.probe_cache[hl_node_name] = probe_output
             return out

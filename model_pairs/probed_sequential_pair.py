@@ -160,7 +160,8 @@ class IITProbeSequentialPair(BaseModelPair):
                     if len(ll_nodes) > 1:
                         raise NotImplementedError
                     for ll_node in ll_nodes:
-                        probe_out = self.probes[hl_node_name](cache[ll_node.name][ll_node.index.as_index].reshape(training_args['batch_size'], -1))
+                        probe_in_shape = self.probes[hl_node_name].weight.shape[1:]
+                        probe_out = self.probes[hl_node_name](cache[ll_node.name][ll_node.index.as_index].reshape(-1, *probe_in_shape))
                         probe_loss += loss_fn(probe_out, gt)
                         
                 behavior_loss = loss_fn(out, base_y)
