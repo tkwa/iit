@@ -1,18 +1,18 @@
 from typing import Callable, Optional
 from dataclasses import dataclass
 import dataclasses
-from utils.index import TorchIndex
 import numpy as np
 from torch import Tensor
+import torchvision
 import transformer_lens as tl
 from transformer_lens.hook_points import HookedRootModule, HookPoint
 import networkx as nx
 import wandb
 from tqdm import tqdm
 from torch.utils.data import DataLoader
-import torchvision
-from utils.iit_dataset import IITDataset
-from utils.config import *
+from ..utils.index import TorchIndex
+from ..utils.iit_dataset import IITDataset
+from ..utils.config import *
 import torch as t
 
 HookName = str
