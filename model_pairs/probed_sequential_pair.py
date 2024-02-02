@@ -12,7 +12,7 @@ class IITProbeSequentialPair(BaseModelPair):
         self.ll_model = ll_model
 
         self.corr:dict[HLNode, set[LLNode]] = corr
-        assert all([k in self.hl_model.hook_dict for k in self.corr.keys()])
+        assert all([k.name in self.hl_model.hook_dict for k in self.corr.keys()])
         self.rng = np.random.default_rng(seed)
         default_training_args = {
                         'batch_size': 256,

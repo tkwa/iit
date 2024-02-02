@@ -24,6 +24,12 @@ class HLNode():
     num_classes: int
     index: Optional[int]
 
+    def __eq__(self, other):
+        return isinstance(other, HLNode) and dataclasses.astuple(self) == dataclasses.astuple(other)
+
+    def __hash__(self):
+        return hash(dataclasses.astuple(self))
+
 @dataclass
 class LLNode():
     name: HookName
@@ -44,7 +50,7 @@ class BaseModelPair(ABC):
     hl_cache: tl.ActivationCache
     ll_cache: tl.ActivationCache
     hl_graph: nx.DiGraph
-    corr: dict[HookName, set[HookName]] # high -> low correspondence. Capital Pi in paper
+    corr: dict[HLNode, set[LLNode]] # high -> low correspondence. Capital Pi in paper
 
     @abstractmethod
     def do_intervention(self, base_input, ablation_input, hl_node:HookName, verbose=False):
