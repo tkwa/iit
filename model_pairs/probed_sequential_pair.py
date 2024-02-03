@@ -1,4 +1,5 @@
 from .base_model_pair import *
+from utils.probes import construct_probes
 
 class IITProbeSequentialPair(BaseModelPair):
     def __init__(self, hl_model:HookedRootModule=None, ll_model:HookedRootModule=None,
@@ -10,9 +11,10 @@ class IITProbeSequentialPair(BaseModelPair):
 
         self.hl_model = hl_model
         self.ll_model = ll_model
-
-        self.corr:dict[HLNode, set[LLNode]] = corr
+        self.corr = corr
+        # print([k.name for k in self.corr.keys()], self.hl_model.hook_dict, sep = "\n")
         assert all([k.name in self.hl_model.hook_dict for k in self.corr.keys()])
+
         self.rng = np.random.default_rng(seed)
         default_training_args = {
                         'batch_size': 256,
@@ -23,32 +25,6 @@ class IITProbeSequentialPair(BaseModelPair):
         training_args = {**default_training_args, **training_args}
         self.training_args = training_args
         self.check_parent = check_parent
-
-    def make_probes(self, input_shape):
-        # create a dummy cache to get hook dimensions
-        print(input_shape)
-        # TODO: remove dummy_cache (can be done using channels from model and index size from corr)
-        out, dummy_cache = self.ll_model.run_with_cache(t.zeros(input_shape, device=DEVICE))
-        print(out.shape)
-        self.probes = {}
-
-        for hl_node, ll_nodes in self.corr.items():
-            if len(ll_nodes) > 1:
-                raise NotImplementedError # should this be all layers' activations flattened into one?
-            for ll_node in ll_nodes:
-                hook_dim = dummy_cache[ll_node.name][ll_node.index.as_index].flatten().shape[0]
-                
-                # print("=======================")
-                # print(ll_node.name, ll_node.index.as_index, dummy_cache[ll_node.name].shape, hook_dim)
-                
-                if ll_node.subspace is None:
-                    self.probes[hl_node] = t.nn.Linear(
-                        in_features=hook_dim, 
-                        out_features=10, # TODO: Remove hardcoding 
-                        bias=False).to(DEVICE)
-                else:
-                    raise NotImplementedError
-        print("made probes", [(k, p.weight.shape) for k, p in self.probes.items()])
     
     def make_hl_model(self, hl_graph):
         raise NotImplementedError
@@ -107,12 +83,13 @@ class IITProbeSequentialPair(BaseModelPair):
         # add to make probes
         input_shape = (dataset[0][0][0]).unsqueeze(0).shape
         with t.no_grad():
-            self.make_probes(input_shape)
+            probes = construct_probes(self, input_shape)
+            print("made probes", [(k, p.weight.shape) for k, p in probes.items()])
         
         loader = DataLoader(dataset, batch_size=training_args['batch_size'], shuffle=True, num_workers=training_args['num_workers'])
         test_loader = DataLoader(test_dataset, batch_size=training_args['batch_size'], shuffle=True, num_workers=training_args['num_workers'])
         params = list(self.ll_model.parameters())
-        for p in self.probes.values():
+        for p in probes.values():
             params += list(p.parameters())
         probe_optimizer = t.optim.Adam(params, lr=training_args['lr']) 
 
@@ -148,20 +125,20 @@ class IITProbeSequentialPair(BaseModelPair):
                 # add probe losses and behavior loss
                 probe_losses = []
                 probe_optimizer.zero_grad()
-                for p in self.probes.values():
+                for p in probes.values():
                     p.train()
                 probe_losses = []
                 base_x, base_y, base_intermediate_vars = base_input
                 out, cache = self.ll_model.run_with_cache(base_x)
                 probe_loss = 0
-                for hl_node_name in self.probes.keys():
+                for hl_node_name in probes.keys():
                     gt = self.hl_model.get_idx_to_intermediate(hl_node_name)(base_intermediate_vars)
                     ll_nodes = self.corr[hl_node_name]
                     if len(ll_nodes) > 1:
                         raise NotImplementedError
                     for ll_node in ll_nodes:
-                        probe_in_shape = self.probes[hl_node_name].weight.shape[1:]
-                        probe_out = self.probes[hl_node_name](cache[ll_node.name][ll_node.index.as_index].reshape(-1, *probe_in_shape))
+                        probe_in_shape = probes[hl_node_name].weight.shape[1:]
+                        probe_out = probes[hl_node_name](cache[ll_node.name][ll_node.index.as_index].reshape(-1, *probe_in_shape))
                         probe_loss += loss_fn(probe_out, gt)
                         
                 behavior_loss = loss_fn(out, base_y)
@@ -179,7 +156,7 @@ class IITProbeSequentialPair(BaseModelPair):
             behavior_accuracies = []
 
             self.ll_model.eval()
-            for p in self.probes.values():
+            for p in probes.values():
                 p.eval()
             self.hl_model.requires_grad_(False)
             with t.no_grad():
@@ -205,18 +182,18 @@ class IITProbeSequentialPair(BaseModelPair):
                     behavior_losses.append(behavior_loss.item())
                     behavior_accuracies.append(behavior_accuracy.item())
                     
-                    for hl_node_name in self.probes.keys():
+                    for hl_node_name in probes.keys():
                         gt = self.hl_model.get_idx_to_intermediate(hl_node_name)(base_intermediate_vars)
                         ll_nodes = self.corr[hl_node_name]
                         if len(ll_nodes) > 1:
                             raise NotImplementedError
                         for ll_node in ll_nodes:
-                            probe_in_shape = self.probes[hl_node_name].weight.shape[1:]
-                            probe_out = self.probes[hl_node_name](cache[ll_node.name][ll_node.index.as_index].reshape(-1, *probe_in_shape))
+                            probe_in_shape = probes[hl_node_name].weight.shape[1:]
+                            probe_out = probes[hl_node_name](cache[ll_node.name][ll_node.index.as_index].reshape(-1, *probe_in_shape))
                             probe_loss += loss_fn(probe_out, gt)
                             top1 = t.argmax(probe_out, dim=1)
                             probe_accuracy = (top1 == gt).float().mean()
-                    probe_losses.append(probe_loss.item()/len(self.probes))
+                    probe_losses.append(probe_loss.item()/len(probes))
                     probe_accuracies.append(probe_accuracy.item())
 
             print(f"Epoch {epoch}: {np.mean(losses):.4f}, \n Test: {np.mean(test_losses):.4f}, {np.mean(accuracies)*100:.4f}%, \nProbe: {np.mean(probe_accuracies)*100:.4f}%, {np.mean(probe_losses):.4f}, \nBehavior: {np.mean(behavior_accuracies)*100:.4f}%, {np.mean(behavior_losses):.4f}")

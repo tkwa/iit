@@ -3,3 +3,10 @@ data/
 wandb/
 iit/
 rough*
+.env
+*.png
+*.jpg
+weights/
+*.pt
+*.npy
+.DS_Store

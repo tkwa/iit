@@ -10,9 +10,9 @@ import networkx as nx
 import wandb
 from tqdm import tqdm
 from torch.utils.data import DataLoader
-from ..utils.index import TorchIndex
-from ..utils.iit_dataset import IITDataset
-from ..utils.config import *
+from utils.index import TorchIndex
+from utils.iit_dataset import IITDataset
+from utils.config import *
 import torch as t
 
 HookName = str
@@ -24,11 +24,21 @@ class HLNode():
     num_classes: int
     index: Optional[int]
 
-    def __eq__(self, other):
-        return isinstance(other, HLNode) and dataclasses.astuple(self) == dataclasses.astuple(other)
-
-    def __hash__(self):
-        return hash(dataclasses.astuple(self))
+    def __hash__(self) -> int:
+        return hash(self.name)
+    
+    def __eq__(self, other) -> bool:
+        if isinstance(other, HLNode):
+            return self.name == other.name
+        elif isinstance(other, str):
+            return self.name == other
+        return False
+    
+    def __str__(self) -> str:
+        return self.name
+    
+    def __repr__(self) -> str:
+        return self.name
 
 @dataclass
 class LLNode():

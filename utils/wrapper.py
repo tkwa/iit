@@ -1,6 +1,5 @@
 import torch as t
 from torch import Tensor
-import transformer_lens as tl
 from transformer_lens.hook_points import HookedRootModule, HookPoint
 
 class HookedModuleWrapper(HookedRootModule):
