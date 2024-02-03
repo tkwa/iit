@@ -1,5 +1,5 @@
-from .base_model_pair import *
-from utils.probes import construct_probes
+from iit.model_pairs.base_model_pair import *
+from iit.utils.probes import construct_probes
 
 class IITProbeSequentialPair(BaseModelPair):
     def __init__(self, hl_model:HookedRootModule=None, ll_model:HookedRootModule=None,

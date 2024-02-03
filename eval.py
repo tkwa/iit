@@ -1,10 +1,10 @@
 from torch import nn
-from model_pairs import IITProbeSequentialPair
-from utils.probes import train_probes_on_model_pair, get_hook_points, evaluate_probe
-from tasks.task_loader import get_alignment, get_dataset, get_input_shape
+from iit.model_pairs import IITProbeSequentialPair
+from iit.utils.probes import train_probes_on_model_pair, get_hook_points, evaluate_probe
+from iit.tasks.task_loader import get_alignment, get_dataset, get_input_shape
 import torch as t
 from tqdm import tqdm
-from utils.plotter import plot_probe_stats
+from iit.utils.plotter import plot_probe_stats
 import os
 import wandb
 from datetime import datetime

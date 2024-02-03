@@ -1,5 +1,5 @@
-from tasks.task_loader import *
-from model_pairs import *
+from iit.tasks.task_loader import *
+from iit.model_pairs import *
 
 training_args = {
     'batch_size': 256,

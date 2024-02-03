@@ -1,9 +1,9 @@
 import torch
 import torch.nn as nn
-from model_pairs.base_model_pair import HLNode, LLNode, BaseModelPair
+from iit.model_pairs.base_model_pair import HLNode, LLNode, BaseModelPair
 from transformer_lens.hook_points import HookedRootModule
 from tqdm import tqdm
-from .config import DEVICE
+from iit.utils.config import DEVICE
 
 def construct_probe(high_level_node: HLNode, ll_nodes: set[LLNode], 
                     dummy_cache: dict[str, torch.Tensor], bias=False):

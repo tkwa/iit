@@ -1,9 +1,9 @@
 from .pvr_hl import get_corr, MNIST_PVR_HL
 from .pvr_check_leaky_hl import get_corr as get_corr_leaky, MNIST_PVR_Leaky_HL
 import torchvision
-from utils.config import DEVICE
+from iit.utils.config import DEVICE
 import torch as t
-from utils.wrapper import HookedModuleWrapper
+from iit.utils.wrapper import HookedModuleWrapper
 
 def get_alignment(config, task):
     if config['model'] == 'resnet18':

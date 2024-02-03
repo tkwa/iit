@@ -1,9 +1,9 @@
-from model_pairs.base_model_pair import HookName
+from iit.model_pairs.base_model_pair import HookName
 import torch as t
 from transformer_lens.hook_points import HookedRootModule, HookPoint
-from utils.config import DEVICE
-from model_pairs.base_model_pair import HLNode, LLNode
-from utils.index import Ix
+from iit.utils.config import DEVICE
+from iit.model_pairs.base_model_pair import HLNode, LLNode
+from iit.utils.index import Ix
 from .utils import *
 
 class MNIST_PVR_HL(HookedRootModule):

@@ -10,9 +10,9 @@ import networkx as nx
 import wandb
 from tqdm import tqdm
 from torch.utils.data import DataLoader
-from utils.index import TorchIndex
-from utils.iit_dataset import IITDataset
-from utils.config import *
+from iit.utils.index import TorchIndex
+from iit.utils.iit_dataset import IITDataset
+from iit.utils.config import *
 import torch as t
 
 HookName = str
