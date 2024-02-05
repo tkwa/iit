@@ -34,12 +34,15 @@ def evaluate_model_on_ablations(ll_model: t.nn.Module, task: str, test_set: t.ut
                 for hl_node, ll_nodes in model_pair.corr.items():
                     hl_output, ll_output = model_pair.do_intervention(
                         base_input, ablated_input, hl_node.name)
+                    hl_base_output = model_pair.hl_model(base_input)
+                    # assert t.all(hl_output == hl_base_output), f"hl_output: {hl_output}; hl_base_output: {hl_base_output}"
                     # find accuracy
                     top1 = t.argmax(ll_output, dim=1)
                     accuracy = (top1 == hl_output).float().mean().item()
-                    hookpoint_stats[hl_node] += accuracy
-                stats_per_layer[hook_point] = hookpoint_stats
-        hookpoint_stats = {k: v / len(dataloader) for k, v in hookpoint_stats.items()}
+                    assert 0 <= accuracy <= 1, f"accuracy must be between 0 and 1, got {accuracy}"
+                    hookpoint_stats[hl_node] += accuracy / len(dataloader)
+        stats_per_layer[hook_point] = hookpoint_stats
+        # hookpoint_stats = {k: v / len(dataloader) for k, v in hookpoint_stats.items()}
         if verbose:
             print(f"hook_point: {hook_point}")
             print(f"hookpoint_stats: {hookpoint_stats}")
@@ -55,28 +58,37 @@ if __name__ == "__main__":
         'batch_size': 512,
         'lr': 0.001,
         'num_workers': 0,
-        'epochs': 0
+        'epochs': 5
     }
     eval_args = {
         'batch_size': 1024,
         'num_workers': 0,
     }
-    save_weights = False
+    save_weights = True
     use_wandb = True
     verbose = False
+    train = False
     #####################################
     train_set, test_set = get_dataset(task, dataset_config={})
     ll_model, hl_model, corr = get_alignment(task, config={})
     input_shape = train_set[0][0].shape
     model_pair = IITProbeSequentialPair(ll_model=ll_model, hl_model=hl_model, 
                                         corr=corr, training_args=training_args) 
-    model_pair.train(train_set, train_set, test_set, test_set, 
-                     epochs=training_args['epochs'], use_wandb=use_wandb)
+    if train:
+        model_pair.train(train_set, train_set, test_set, test_set, 
+                        epochs=training_args['epochs'], use_wandb=use_wandb)
+    else:
+        try:
+            model = t.load(f"weights/ll_model/{task}.pt")
+            model_pair.ll_model.load_state_dict(model)
+        except:
+            raise ValueError(f"Could not load model from weights/ll_model/{task}.pt")
+
     if use_wandb:
         wandb.finish()
     print(f"done training\n------------------------------------")
     print(f"evaluating model")
-    leaky_train_set, leaky_test_set = get_dataset(leaky_task, dataset_config={'train_size': 60, 'test_size': 60})
+    leaky_train_set, leaky_test_set = get_dataset(leaky_task, dataset_config={})
     ll_model.eval()
     
     if save_weights:

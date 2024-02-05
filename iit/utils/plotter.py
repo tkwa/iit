@@ -104,6 +104,7 @@ def plot_ablation_stats(stats_per_layer, prefix='', use_wandb=False):
     for i, hookpoint in enumerate(hookpoints):
         for j, hl_node in enumerate(hl_nodes):
             acc[i, j] = stats_per_layer[hookpoint][hl_node]
+            assert 0 <= acc[i, j] <= 1, f"acc[{i}, {j}] = {acc[i, j]}"
     
     # plot
     get_idx = lambda name: hl_nodes.index('hook_{}'.format(name))
@@ -111,10 +112,8 @@ def plot_ablation_stats(stats_per_layer, prefix='', use_wandb=False):
     im = ax.imshow(acc, cmap='viridis', vmin=0, vmax=1)
     ax.set_title('Ablation Accuracy')
     ax.set_xlabel('HL Node')
-    ax.set_xticks(np.arange(len(hl_nodes)))
-    ax.set_yticks(np.arange(len(hookpoints)))
-    ax.set_xticklabels(hl_node_labels)
-    ax.set_yticklabels(hook_point_labels)
+    ax.set_xticks(np.arange(len(hl_nodes)), hl_node_labels, rotation=90)
+    ax.set_yticks(np.arange(len(hookpoints)), hook_point_labels)
     fig.colorbar(im)
     plt.savefig(f'plots/{prefix}_ablation_stats.png')
     if use_wandb:
