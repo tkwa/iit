@@ -1,0 +1,101 @@
+from iit.utils.wrapper import get_hook_points
+from iit.utils.config import DEVICE
+from iit.model_pairs import IITProbeSequentialPair
+from iit.tasks.task_loader import get_alignment, get_dataset
+import torch as t
+from tqdm import tqdm
+from iit.utils.iit_dataset import IITDataset
+import os
+import wandb
+from datetime import datetime
+from iit.utils.plotter import plot_ablation_stats
+
+def evaluate_model_on_ablations(ll_model: t.nn.Module, task: str, test_set: t.utils.data.Dataset,
+                                eval_args: dict, verbose: bool = False):
+    print("reached evaluate_model!")
+    stats_per_layer = {}
+    for hook_point in tqdm(get_hook_points(ll_model), desc="Hook points"):
+        _, hl_model, corr = get_alignment(task, config={'hook_point': hook_point})
+        model_pair = IITProbeSequentialPair(
+            ll_model=ll_model, hl_model=hl_model, corr=corr)
+        dataset = IITDataset(test_set, test_set)
+        dataloader = t.utils.data.DataLoader( 
+            dataset, batch_size=eval_args['batch_size'], 
+            num_workers=eval_args['num_workers'])
+        # set up stats
+        hookpoint_stats = {}
+        for hl_node, _ in model_pair.corr.items():
+            hookpoint_stats[hl_node] = 0
+        # find test accuracy
+        with t.no_grad():
+            for base_input, ablated_input in tqdm(dataloader, desc=f"Ablations on {hook_point}"):
+                base_input = [x.to(DEVICE) for x in base_input]
+                ablated_input = [x.to(DEVICE) for x in ablated_input]
+                for hl_node, ll_nodes in model_pair.corr.items():
+                    hl_output, ll_output = model_pair.do_intervention(
+                        base_input, ablated_input, hl_node.name)
+                    # find accuracy
+                    top1 = t.argmax(ll_output, dim=1)
+                    accuracy = (top1 == hl_output).float().mean().item()
+                    hookpoint_stats[hl_node] += accuracy
+                stats_per_layer[hook_point] = hookpoint_stats
+        hookpoint_stats = {k: v / len(dataloader) for k, v in hookpoint_stats.items()}
+        if verbose:
+            print(f"hook_point: {hook_point}")
+            print(f"hookpoint_stats: {hookpoint_stats}")
+
+    if verbose:
+        print(f"stats_per_layer: {stats_per_layer}")
+    return stats_per_layer
+
+if __name__ == "__main__":
+    task = 'mnist_pvr'
+    leaky_task = 'pvr_leaky'
+    training_args = {
+        'batch_size': 512,
+        'lr': 0.001,
+        'num_workers': 0,
+        'epochs': 0
+    }
+    eval_args = {
+        'batch_size': 1024,
+        'num_workers': 0,
+    }
+    save_weights = False
+    use_wandb = True
+    verbose = False
+    #####################################
+    train_set, test_set = get_dataset(task, dataset_config={})
+    ll_model, hl_model, corr = get_alignment(task, config={})
+    input_shape = train_set[0][0].shape
+    model_pair = IITProbeSequentialPair(ll_model=ll_model, hl_model=hl_model, 
+                                        corr=corr, training_args=training_args) 
+    model_pair.train(train_set, train_set, test_set, test_set, 
+                     epochs=training_args['epochs'], use_wandb=use_wandb)
+    if use_wandb:
+        wandb.finish()
+    print(f"done training\n------------------------------------")
+    print(f"evaluating model")
+    leaky_train_set, leaky_test_set = get_dataset(leaky_task, dataset_config={'train_size': 60, 'test_size': 60})
+    ll_model.eval()
+    
+    if save_weights:
+        if not os.path.exists(f"weights/ll_model"):
+            os.makedirs(f"weights/ll_model")
+        t.save(ll_model.state_dict(), f"weights/ll_model/{task}.pt")
+    print("evaluating on leakyness")
+
+    if use_wandb:
+        wandb.init(project="iit")
+        wandb.run.name = f"{leaky_task}_ablation"
+        wandb.run.save()
+        wandb.config.update(eval_args)
+
+    leaky_stats_per_layer = evaluate_model_on_ablations(
+        ll_model=ll_model, task=leaky_task, eval_args=eval_args,
+        test_set=leaky_test_set, verbose=verbose)
+    
+    time = datetime.now().strftime("%d_%m_%Y_%H_%M_%S")
+    plot_ablation_stats(leaky_stats_per_layer, prefix=f'{time}', use_wandb=use_wandb)
+    wandb.finish()
+    print("done evaluating\n------------------------------------")

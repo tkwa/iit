@@ -10,7 +10,7 @@ class MNIST_PVR_Leaky_HL(HookedRootModule):
     def __init__(self, class_map = MNIST_CLASS_MAP, device=DEVICE):
         super().__init__()
         hook_str = """hook_{}_leaked_to_{}"""
-        self.hooks = {}
+        self.leaky_hooks = {}
         self.hook_tl = HookPoint()
         self.hook_tr = HookPoint()
         self.hook_bl = HookPoint()
@@ -20,10 +20,10 @@ class MNIST_PVR_Leaky_HL(HookedRootModule):
             for j in ['tl', 'tr', 'bl', 'br']:
                 if i != j:
                     hl_node = HLNode(hook_str.format(i, j), 10, None)
-                    self.hooks[hl_node] = HookPoint()
+                    self.leaky_hooks[hl_node] = HookPoint()
+                    setattr(self, hl_node.name, self.leaky_hooks[hl_node]) # needed as pytorch only checks  variables for named modules
         self.class_map = t.tensor([class_map[i] for i in range(len(class_map))], dtype=t.long, device=device)
         self.setup()
-        self.hook_dict.update({k.name: v for k, v in self.hooks.items()}) # !!! is this correct???
 
     def get_idx_to_intermediate(self, name: HookName):
         if 'hook_tl' in name:
@@ -68,7 +68,7 @@ def get_corr(mode, hook_point, model, pad_size):
         bl_idx = Ix[None, None, quadrant_size:quadrant_size*2, :quadrant_size]
         br_idx = Ix[None, None, quadrant_size:quadrant_size*2, quadrant_size:quadrant_size*2]
         corr = {}
-        for k in hl.hooks.keys():
+        for k in hl.leaky_hooks.keys():
             if 'to_tl' in k.name:
                 corr[k] = {LLNode(name=hook_point, index=tl_idx,)}
             elif 'to_tr' in k.name:

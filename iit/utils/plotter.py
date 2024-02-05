@@ -2,6 +2,18 @@ import matplotlib.pyplot as plt
 import numpy as np
 import wandb
 from PIL import Image
+from iit.model_pairs.base_model_pair import HLNode
+
+def get_hookpoint_labels(hookpoints):
+    return [i.replace('mod.', '').replace('.hook_point', '').replace('.', ' ') for i in hookpoints]
+
+def get_leaky_hlnode_labels(hl_nodes):
+    x_tick_string = """{} -> {}"""
+    if type(hl_nodes[0]) == HLNode:
+        hl_nodes = [i.name for i in hl_nodes]
+    elif type(hl_nodes[0]) != str:
+        raise ValueError(f"hl_nodes must be a list of str or HLNode, got {type(hl_nodes[0])}")
+    return [x_tick_string.format(i.split('_')[1], i.split('_')[-1]) for i in hl_nodes]
 
 def plot_probe_stats(correctness_stats_per_layer, 
                      leaky_stats_per_layer, reduction='max', prefix='', use_wandb=False):
@@ -56,7 +68,7 @@ def plot_probe_stats(correctness_stats_per_layer,
         ax[i].set_xticklabels(hl_nodes)
         ax[i].set_ylabel('Hookpoint')
         plt.setp(ax[i].get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")
-    hook_point_labels = [i.replace('mod.', '').replace('.hook_point', '').replace('.', ' ') for i in hookpoints]
+    hook_point_labels = get_hookpoint_labels(hookpoints)
     ax[1].set_title('Leaky Accuracy')
     ax[0].set_yticklabels(hook_point_labels)
     ax[1].set_yticklabels(hook_point_labels)
@@ -69,9 +81,8 @@ def plot_probe_stats(correctness_stats_per_layer,
     plt.xlabel('HL Node')
     plt.ylabel('Hookpoint')
     plt.title('Leaky Accuracy')
-    x_tick_string = """{} -> {}"""
     plt.xticks(np.arange(len(leaky_hl_nodes)), 
-               [x_tick_string.format(i.split('_')[1], i.split('_')[-1]) for i in leaky_hl_nodes], 
+               get_leaky_hlnode_labels(leaky_hl_nodes), 
                rotation=90)
     plt.yticks(np.arange(len(hookpoints)), hook_point_labels)
     plt.tight_layout()
@@ -82,3 +93,31 @@ def plot_probe_stats(correctness_stats_per_layer,
         wandb.log({'leaky_accs_all': wandb.Image(f'plots/{prefix}_leaky_accs_all.png')})
 
     print("Plotted probe stats. Find them in plots folder.")
+
+def plot_ablation_stats(stats_per_layer, prefix='', use_wandb=False):
+    # make arrays
+    hookpoints = list(stats_per_layer.keys())
+    hl_nodes = list(stats_per_layer[hookpoints[0]].keys())
+    hook_point_labels = get_hookpoint_labels(hookpoints)
+    hl_node_labels = get_leaky_hlnode_labels(hl_nodes)
+    acc = np.zeros((len(hookpoints), len(hl_nodes)))
+    for i, hookpoint in enumerate(hookpoints):
+        for j, hl_node in enumerate(hl_nodes):
+            acc[i, j] = stats_per_layer[hookpoint][hl_node]
+    
+    # plot
+    get_idx = lambda name: hl_nodes.index('hook_{}'.format(name))
+    fig, ax = plt.subplots(1, 1, figsize=(10, 10))
+    im = ax.imshow(acc, cmap='viridis', vmin=0, vmax=1)
+    ax.set_title('Ablation Accuracy')
+    ax.set_xlabel('HL Node')
+    ax.set_xticks(np.arange(len(hl_nodes)))
+    ax.set_yticks(np.arange(len(hookpoints)))
+    ax.set_xticklabels(hl_node_labels)
+    ax.set_yticklabels(hook_point_labels)
+    fig.colorbar(im)
+    plt.savefig(f'plots/{prefix}_ablation_stats.png')
+    if use_wandb:
+        wandb.log({'ablation stats': wandb.Image(f'plots/{prefix}_ablation_stats.png')})
+    
+    print("Plotted ablation stats. Find them in plots folder.")

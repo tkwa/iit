@@ -12,8 +12,6 @@ class IITProbeSequentialPair(BaseModelPair):
         self.hl_model = hl_model
         self.ll_model = ll_model
         self.corr = corr
-        # print([k.name for k in self.corr.keys()], self.hl_model.hook_dict, sep = "\n")
-        assert all([k.name in self.hl_model.hook_dict for k in self.corr.keys()])
 
         self.rng = np.random.default_rng(seed)
         default_training_args = {

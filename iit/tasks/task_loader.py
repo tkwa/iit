@@ -3,8 +3,9 @@ from .mnist_pvr.utils import mnist_train, mnist_test
 from .mnist_pvr.utils import get_input_shape as get_pvr_input_shape
 from .mnist_pvr.get_alignment import get_alignment as get_mnist_pvr_corr
 from transformer_lens.hook_points import HookedRootModule
+from iit.utils.iit_dataset import IITDataset
 
-def get_dataset(task: str, dataset_config: dict):
+def get_dataset(task: str, dataset_config: dict) -> tuple([IITDataset, IITDataset]):
     if 'pvr' in task:
         default_dataset_args = {
             'pad_size': 7,

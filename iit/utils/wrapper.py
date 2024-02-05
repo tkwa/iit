@@ -49,3 +49,7 @@ class HookedModuleWrapper(HookedRootModule):
             return result
         assert isinstance(result, Tensor)
         return self.hook_point(result)
+
+
+def get_hook_points(model: HookedRootModule):
+    return [k for k in list(model.hook_dict.keys()) if 'conv' in k]

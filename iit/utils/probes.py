@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 from iit.model_pairs.base_model_pair import HLNode, LLNode, BaseModelPair
-from transformer_lens.hook_points import HookedRootModule
 from tqdm import tqdm
 from iit.utils.config import DEVICE
 
@@ -23,10 +22,6 @@ def construct_probes(model_pair: BaseModelPair, input_shape: tuple[int], bias=Fa
         probe = construct_probe(hl_node, ll_nodes, dummy_cache, bias=bias)
         probes[hl_node.name] = probe
     return probes
-
-def get_hook_points(model: HookedRootModule):
-    return [k for k in list(model.hook_dict.keys()) if 'conv' in k]
-
 
 def train_probes_on_model_pair(model_pair: BaseModelPair, input_shape: str, 
                           train_set: torch.utils.data.Dataset, training_args: dict):
