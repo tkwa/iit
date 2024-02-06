@@ -20,12 +20,3 @@ def visualize_datapoint(dataset, index):
 def visualize_image(input):
     image = torchvision.transforms.functional.to_pil_image(input)
     image.show()
-
-input_shape = None
-
-def set_input_shape(shape):
-    global input_shape
-    input_shape = shape
-
-def get_input_shape():
-    return input_shape

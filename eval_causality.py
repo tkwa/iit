@@ -15,7 +15,10 @@ def evaluate_model_on_ablations(ll_model: t.nn.Module, task: str, test_set: t.ut
     print("reached evaluate_model!")
     stats_per_layer = {}
     for hook_point in tqdm(get_hook_points(ll_model), desc="Hook points"):
-        _, hl_model, corr = get_alignment(task, config={'hook_point': hook_point})
+        _, hl_model, corr = get_alignment(task, config={
+            'hook_point': hook_point, 
+            "input_shape": test_set.get_input_shape()
+        })
         model_pair = IITProbeSequentialPair(
             ll_model=ll_model, hl_model=hl_model, corr=corr)
         dataloader = t.utils.data.DataLoader( 
@@ -80,8 +83,7 @@ if __name__ == "__main__":
     train = False
     #####################################
     train_set, test_set = get_dataset(task, dataset_config={})
-    ll_model, hl_model, corr = get_alignment(task, config={})
-    input_shape = train_set[0][0].shape
+    ll_model, hl_model, corr = get_alignment(task, config={"input_shape": test_set.get_input_shape()})
     model_pair = IITProbeSequentialPair(ll_model=ll_model, hl_model=hl_model, 
                                         corr=corr, training_args=training_args) 
     if train:

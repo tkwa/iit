@@ -1,6 +1,5 @@
 from .mnist_pvr.dataset import ImagePVRDataset
 from .mnist_pvr.utils import mnist_train, mnist_test
-from .mnist_pvr.utils import get_input_shape as get_pvr_input_shape
 from .mnist_pvr.get_alignment import get_alignment as get_mnist_pvr_corr
 from transformer_lens.hook_points import HookedRootModule
 from iit.utils.iit_dataset import IITDataset
@@ -36,9 +35,4 @@ def get_alignment(task: str, config: dict) ->  tuple([HookedRootModule, HookedRo
         default_config.update(config)
         return get_mnist_pvr_corr(default_config, task)
     
-    raise ValueError(f"Unknown task {task}")
-    
-def get_input_shape(task: str):
-    if 'pvr' in task:
-        return get_pvr_input_shape()
     raise ValueError(f"Unknown task {task}")

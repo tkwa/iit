@@ -9,7 +9,7 @@ training_args = {
 
 task = 'mnist_pvr'
 train_set, test_set = get_dataset(task, dataset_config={})
-ll_model, hl_model, corr = get_alignment(task, config={})
+ll_model, hl_model, corr = get_alignment(task, config={"input_shape": test_set.get_input_shape()})
 model_pair = IITModelPair(ll_model=ll_model, hl_model=hl_model, corr=corr, training_args=training_args) # TODO: add wrapper for choosing model pair
 model_pair.train(train_set, train_set, test_set, test_set, epochs=1000, use_wandb=False)
 

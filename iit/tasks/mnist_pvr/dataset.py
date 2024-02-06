@@ -29,9 +29,15 @@ class ImagePVRDataset(Dataset):
         if not self.iid:
             print("WARNING: using non-iid mode")
             assert len(self.base_dataset) >= 4*self.length, "Dataset is too small for non-iid mode"
-        if get_input_shape() is None:
-            set_input_shape(self[0][0].unsqueeze(0).shape)
+        self.input_shape = None
+        self.set_input_shape(self[0][0].unsqueeze(0).shape)
 
+    def set_input_shape(self, shape):
+        self.input_shape = shape
+    
+    def get_input_shape(self):
+        return self.input_shape
+    
     @staticmethod
     def concatenate_2x2(images):
         """
@@ -131,7 +137,7 @@ class ImagePVRDataset(Dataset):
     
 
     def get_idx_and_intermediate(self, hl_node: HLNode):
-        input_shape = get_input_shape()
+        input_shape = self.get_input_shape()
         width, height = input_shape[2], input_shape[3]
         if "hook_tl" in hl_node.name:
             idx = Ix[None, :width//2, :height//2]

@@ -9,7 +9,6 @@ import torch as t
 from torch.utils.data import Dataset
 from iit.tasks.mnist_pvr.dataset import ImagePVRDataset
 from iit.tasks.mnist_pvr.pvr_check_leaky_hl import MNIST_PVR_Leaky_HL
-from iit.tasks.mnist_pvr.utils import get_input_shape
 from iit.utils.index import Ix
 
 class SmallMNIST(Dataset):
@@ -34,14 +33,10 @@ def create_small_mnist():
     return SmallMNIST(images, labels)
 
 
-# def test_get_input_shape():
-#     small_mnist = create_small_mnist()
-#     dataset = ImagePVRDataset(small_mnist, length=1, pad_size=3)
-#     assert get_input_shape() == (1, 3, (28 + 3*2)*2, (28 + 3*2)*2)
-#     del dataset
-#     assert get_input_shape() is None
-#     dataset = ImagePVRDataset(small_mnist, length=1, pad_size=3)
-#     assert get_input_shape() == (1, 3, (28 + 3*2)*2, (28 + 3*2)*2)
+def test_get_input_shape():
+    small_mnist = create_small_mnist()
+    dataset = ImagePVRDataset(small_mnist, length=1, pad_size=3)
+    assert dataset.get_input_shape() == (1, 3, (28 + 3*2)*2, (28 + 3*2)*2)
 
 def test_patch_quadrant():
     np.random.seed(1)
@@ -55,7 +50,7 @@ def test_patch_quadrant():
     patch_br_out = dataset.patch_batch_at_hl([image], [intermediate_vars], hl_model.hook_br)
 
     # check if all other indices of patched images are unchanged
-    _, _, width, height = get_input_shape()
+    _, _, width, height = dataset.get_input_shape()
     tl_idx = Ix[None, :width//2, :height//2].as_index
     tr_idx = Ix[None, :width//2, height//2:height].as_index
     bl_idx = Ix[None, width//2:width, :height//2].as_index

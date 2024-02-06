@@ -56,9 +56,9 @@ hl_nodes = {
     'hook_br': HLNode('hook_br', 10, None),
 }
 
-def get_corr(mode, hook_point, model: HookedRootModule):
+def get_corr(mode, hook_point, model: HookedRootModule, input_shape):
     with t.no_grad():
-        out, cache = model.run_with_cache(t.zeros(get_input_shape()).to(DEVICE))
+        out, cache = model.run_with_cache(t.zeros(input_shape).to(DEVICE))
         # print(out.shape)
         output_shape = cache[hook_point].shape
         channel_size = output_shape[1]

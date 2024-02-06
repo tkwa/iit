@@ -1,8 +1,8 @@
 from torch import nn
-from iit.iit.utils.wrapper import get_hook_points
+from iit.utils.wrapper import get_hook_points
 from iit.model_pairs import IITProbeSequentialPair
 from iit.utils.probes import train_probes_on_model_pair, evaluate_probe
-from iit.tasks.task_loader import get_alignment, get_dataset, get_input_shape
+from iit.tasks.task_loader import get_alignment, get_dataset
 import torch as t
 from tqdm import tqdm
 from iit.utils.plotter import plot_probe_stats
@@ -24,11 +24,14 @@ def evaluate_model_on_probes(ll_model: t.nn.Module, task: str, probe_training_ar
         wandb.config.update(probe_training_args)
 
     for hook_point in tqdm(get_hook_points(ll_model), desc="Hook points"):
-        _, hl_model, corr = get_alignment(task, config={'hook_point': hook_point})
+        _, hl_model, corr = get_alignment(task, config={
+            'hook_point': hook_point,
+            "input_shape": test_set.get_input_shape()
+        })
         model_pair = IITProbeSequentialPair(
             ll_model=ll_model, hl_model=hl_model, corr=corr, training_args=probe_training_args)
         
-        input_shape = get_input_shape(task=task)
+        input_shape = train_set.get_input_shape()
         trainer_out = train_probes_on_model_pair(model_pair, input_shape, train_set, probe_training_args)
         # get everything but probes from trainer_out
         log_stats_per_layer[hook_point] = {k: v for k, v in trainer_out.items() if k != 'probes'}
@@ -66,8 +69,9 @@ if __name__ == "__main__":
         'batch_size': 512,
         'lr': 0.001,
         'num_workers': 0,
+        "epochs": 5
     }
-    save_weights = True
+    save_weights = False
     probe_training_args = {
         'batch_size': 1024,
         'lr': 0.001,
@@ -78,10 +82,10 @@ if __name__ == "__main__":
     reduction = 'max'
     #####################################
     train_set, test_set = get_dataset(task, dataset_config={})
-    ll_model, hl_model, corr = get_alignment(task, config={})
-    input_shape = train_set[0][0].shape
+    ll_model, hl_model, corr = get_alignment(task, config={"input_shape": test_set.get_input_shape()})
     model_pair = IITProbeSequentialPair(ll_model=ll_model, hl_model=hl_model, corr=corr, training_args=training_args) 
-    model_pair.train(train_set, train_set, test_set, test_set, epochs=5, use_wandb=use_wandb)
+    model_pair.train(train_set, train_set, test_set, test_set, 
+                     epochs=training_args['epochs'], use_wandb=use_wandb)
     if use_wandb:
         wandb.finish()
     print(f"done training\n------------------------------------")

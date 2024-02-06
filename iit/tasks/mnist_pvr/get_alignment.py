@@ -15,10 +15,10 @@ def get_alignment(config, task):
     
     if task == 'mnist_pvr':
         hl_model = MNIST_PVR_HL().to(DEVICE)
-        corr = get_corr(config['mode'], config['hook_point'], ll_model)
+        corr = get_corr(config['mode'], config['hook_point'], ll_model, config['input_shape'])
     elif task == 'pvr_leaky':
         hl_model = MNIST_PVR_Leaky_HL().to(DEVICE)
-        corr = get_corr_leaky(config['mode'], config['hook_point'], ll_model)
+        corr = get_corr_leaky(config['mode'], config['hook_point'], ll_model, config['input_shape'])
     else:
         raise ValueError(f"Unknown task {task}")
     return ll_model, hl_model, corr
