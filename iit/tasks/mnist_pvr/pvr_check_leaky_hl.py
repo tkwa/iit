@@ -46,6 +46,15 @@ class MNIST_PVR_Leaky_HL(HookedRootModule):
         tr = self.hook_tr(tr)
         bl = self.hook_bl(bl)
         br = self.hook_br(br)
+        for k, v in self.leaky_hooks.items():
+            if 'hook_tl' in k.name:
+                tl = v(tl)
+            elif 'hook_tr' in k.name:
+                tr = v(tr)
+            elif 'hook_bl' in k.name:
+                bl = v(bl)
+            elif 'hook_br' in k.name:
+                br = v(br)
         pointer = self.class_map[(tl,)] - 1
         # TODO fix to support batching
         tr_bl_br = t.stack([tr, bl, br], dim=0)

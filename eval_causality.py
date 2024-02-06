@@ -77,7 +77,7 @@ if __name__ == "__main__":
     save_weights = True
     use_wandb = True
     verbose = False
-    train = True
+    train = False
     #####################################
     train_set, test_set = get_dataset(task, dataset_config={})
     ll_model, hl_model, corr = get_alignment(task, config={})
