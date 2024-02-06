@@ -118,5 +118,5 @@ def plot_ablation_stats(stats_per_layer, prefix='', use_wandb=False):
     plt.savefig(f'plots/{prefix}_ablation_stats.png')
     if use_wandb:
         wandb.log({'ablation stats': wandb.Image(f'plots/{prefix}_ablation_stats.png')})
-    
+    np.save(f'plots/bin/{prefix}_ablation_acc.npy', acc)
     print("Plotted ablation stats. Find them in plots folder.")

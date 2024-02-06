@@ -56,7 +56,7 @@ hl_nodes = {
     'hook_br': HLNode('hook_br', 10, None),
 }
 
-def get_corr(mode, hook_point, model: HookedRootModule, pad_size):
+def get_corr(mode, hook_point, model: HookedRootModule):
     with t.no_grad():
         out, cache = model.run_with_cache(t.zeros(get_input_shape()).to(DEVICE))
         # print(out.shape)

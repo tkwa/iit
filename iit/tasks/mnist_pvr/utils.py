@@ -17,6 +17,9 @@ def visualize_datapoint(dataset, index):
     image = torchvision.transforms.functional.to_pil_image(image)
     image.show()
 
+def visualize_image(input):
+    image = torchvision.transforms.functional.to_pil_image(input)
+    image.show()
 
 input_shape = None
 

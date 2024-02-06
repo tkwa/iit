@@ -18,9 +18,8 @@ def evaluate_model_on_ablations(ll_model: t.nn.Module, task: str, test_set: t.ut
         _, hl_model, corr = get_alignment(task, config={'hook_point': hook_point})
         model_pair = IITProbeSequentialPair(
             ll_model=ll_model, hl_model=hl_model, corr=corr)
-        dataset = IITDataset(test_set, test_set)
         dataloader = t.utils.data.DataLoader( 
-            dataset, batch_size=eval_args['batch_size'], 
+            test_set, batch_size=eval_args['batch_size'], 
             num_workers=eval_args['num_workers'])
         # set up stats
         hookpoint_stats = {}
@@ -28,10 +27,21 @@ def evaluate_model_on_ablations(ll_model: t.nn.Module, task: str, test_set: t.ut
             hookpoint_stats[hl_node] = 0
         # find test accuracy
         with t.no_grad():
-            for base_input, ablated_input in tqdm(dataloader, desc=f"Ablations on {hook_point}"):
-                base_input = [x.to(DEVICE) for x in base_input]
-                ablated_input = [x.to(DEVICE) for x in ablated_input]
+            for base_input_lists in tqdm(dataloader, desc=f"Ablations on {hook_point}"):
+                base_input = [x.to(DEVICE) for x in base_input_lists]
+                
                 for hl_node, ll_nodes in model_pair.corr.items():
+                    ablated_input = test_set.patch_batch_at_hl(
+                        list(base_input[0]), list(base_input_lists[-1]), hl_node)
+                    ablated_input = (t.stack(ablated_input[0]).to(DEVICE), # input
+                                     t.stack(ablated_input[1]).to(DEVICE), # label
+                                     t.stack(ablated_input[2]).to(DEVICE)) # intermediate_data
+                    # unsquueze if single element
+                    if ablated_input[1].shape == ():
+                        assert eval_args['batch_size'] == 1, "Logic error! If batch_size is not 1, then labels should not be a scalar"
+                        ablated_input = (ablated_input[0].unsqueeze(0), 
+                                         ablated_input[1].unsqueeze(0), 
+                                         ablated_input[2].unsqueeze(0))
                     hl_output, ll_output = model_pair.do_intervention(
                         base_input, ablated_input, hl_node.name)
                     hl_base_output = model_pair.hl_model(base_input)
@@ -58,7 +68,7 @@ if __name__ == "__main__":
         'batch_size': 512,
         'lr': 0.001,
         'num_workers': 0,
-        'epochs': 5
+        'epochs': 0
     }
     eval_args = {
         'batch_size': 1024,
@@ -67,7 +77,7 @@ if __name__ == "__main__":
     save_weights = True
     use_wandb = True
     verbose = False
-    train = False
+    train = True
     #####################################
     train_set, test_set = get_dataset(task, dataset_config={})
     ll_model, hl_model, corr = get_alignment(task, config={})

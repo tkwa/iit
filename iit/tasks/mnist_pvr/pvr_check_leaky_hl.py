@@ -53,7 +53,7 @@ class MNIST_PVR_Leaky_HL(HookedRootModule):
 
 hl = MNIST_PVR_Leaky_HL().to(DEVICE)
 
-def get_corr(mode, hook_point, model, pad_size):
+def get_corr(mode, hook_point, model):
     with t.no_grad():
         out, cache = model.run_with_cache(t.zeros(get_input_shape(), device=DEVICE))
         input_shape = cache[hook_point].shape

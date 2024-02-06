@@ -16,7 +16,7 @@ def get_dataset(task: str, dataset_config: dict) -> tuple([IITDataset, IITDatase
         if task == 'mnist_pvr':
             unique_per_quad = False
         elif task == 'pvr_leaky':
-            unique_per_quad = True
+            unique_per_quad = False
         else:
             raise ValueError(f"Unknown task {task}")
         train_set = ImagePVRDataset(mnist_train, length=default_dataset_args['train_size'], pad_size=default_dataset_args['pad_size'], unique_per_quad=unique_per_quad)
