@@ -48,15 +48,19 @@ def evaluate_model_on_ablations(ll_model: t.nn.Module, task: str, test_set: t.ut
                         base_input, ablated_input, hl_node.name)
                     ablated_y = ablated_input[1]
                     base_y = base_input[1]
-                    unchanged = (ablated_y == base_y).float().mean().item()
+                    changed = (ablated_y != base_y).float()
                     # assert t.all(hl_output == hl_base_output), f"hl_output: {hl_output}; hl_base_output: {hl_base_output}"
                     # find accuracy
                     top1 = t.argmax(ll_output, dim=1)
-                    accuracy = (top1 == hl_output).float().mean().item()
-                    assert 0 <= accuracy <= 1, f"accuracy must be between 0 and 1, got {accuracy}"
+                    accuracy = (top1 == hl_output).float()
+                    accuracy = accuracy * changed
                     # clip to 0 if accuracy is less than unchanged
-                    changed_accuracy = (accuracy - unchanged) if accuracy > unchanged else 0
-                    hookpoint_stats[hl_node] += changed_accuracy / len(dataloader)
+                    changed_len = changed.sum()
+                    # mean accuracy
+                    hookpoint_stats[hl_node] += accuracy.sum() / changed_len
+        for k, v in hookpoint_stats.items():
+            hookpoint_stats[k] = v / len(dataloader)
+            assert 0 <= hookpoint_stats[k] <= 1, f"hookpoint_stats[hl_node]: {hookpoint_stats[hl_node]}"
         stats_per_layer[hook_point] = hookpoint_stats
         # hookpoint_stats = {k: v / len(dataloader) for k, v in hookpoint_stats.items()}
         if verbose:
