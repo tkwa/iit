@@ -32,14 +32,13 @@ def evaluate_model_on_ablations(ll_model: t.nn.Module, task: str, test_set: t.ut
         with t.no_grad():
             for base_input_lists in tqdm(dataloader, desc=f"Ablations on {hook_point}"):
                 base_input = [x.to(DEVICE) for x in base_input_lists]
-                
                 for hl_node, ll_nodes in model_pair.corr.items():
                     ablated_input = test_set.patch_batch_at_hl(
-                        list(base_input[0]), list(base_input_lists[-1]), hl_node)
+                        list(base_input[0]), list(base_input_lists[-1]), hl_node, list(base_input[1]))
                     ablated_input = (t.stack(ablated_input[0]).to(DEVICE), # input
                                      t.stack(ablated_input[1]).to(DEVICE), # label
                                      t.stack(ablated_input[2]).to(DEVICE)) # intermediate_data
-                    # unsquueze if single element
+                    # unsqueeze if single element
                     if ablated_input[1].shape == ():
                         assert eval_args['batch_size'] == 1, "Logic error! If batch_size is not 1, then labels should not be a scalar"
                         ablated_input = (ablated_input[0].unsqueeze(0), 
@@ -47,13 +46,17 @@ def evaluate_model_on_ablations(ll_model: t.nn.Module, task: str, test_set: t.ut
                                          ablated_input[2].unsqueeze(0))
                     hl_output, ll_output = model_pair.do_intervention(
                         base_input, ablated_input, hl_node.name)
-                    hl_base_output = model_pair.hl_model(base_input)
+                    ablated_y = ablated_input[1]
+                    base_y = base_input[1]
+                    unchanged = (ablated_y == base_y).float().mean().item()
                     # assert t.all(hl_output == hl_base_output), f"hl_output: {hl_output}; hl_base_output: {hl_base_output}"
                     # find accuracy
                     top1 = t.argmax(ll_output, dim=1)
                     accuracy = (top1 == hl_output).float().mean().item()
                     assert 0 <= accuracy <= 1, f"accuracy must be between 0 and 1, got {accuracy}"
-                    hookpoint_stats[hl_node] += accuracy / len(dataloader)
+                    # clip to 0 if accuracy is less than unchanged
+                    changed_accuracy = (accuracy - unchanged) if accuracy > unchanged else 0
+                    hookpoint_stats[hl_node] += changed_accuracy / len(dataloader)
         stats_per_layer[hook_point] = hookpoint_stats
         # hookpoint_stats = {k: v / len(dataloader) for k, v in hookpoint_stats.items()}
         if verbose:
@@ -71,13 +74,13 @@ if __name__ == "__main__":
         'batch_size': 512,
         'lr': 0.001,
         'num_workers': 0,
-        'epochs': 0
+        'epochs': 5
     }
     eval_args = {
         'batch_size': 1024,
         'num_workers': 0,
     }
-    save_weights = True
+    save_weights = False
     use_wandb = True
     verbose = False
     train = False

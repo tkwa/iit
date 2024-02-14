@@ -72,7 +72,4 @@ def test_patch_quadrant():
     assert t.all(patch_br_out[0][0][tr_idx] == image[tr_idx]) # top right
     assert t.all(patch_br_out[0][0][bl_idx] == image[bl_idx]) # bottom left
 
-
-
-
-
+    

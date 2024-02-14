@@ -165,7 +165,7 @@ class IITProbeSequentialPair(BaseModelPair):
                     hl_output, ll_output = self.do_intervention(base_input, ablation_input, hl_node)
                     # hl_output, ll_output = self.no_intervention(base_input)
                     loss = loss_fn(ll_output, hl_output)
-                    top1 = t.argmax(ll_output, dim=1)
+                    top1 = t.argmax(ll_output, dim=-1)
                     accuracy = (top1 == hl_output).float().mean()
                     accuracies.append(accuracy.item())
                     test_losses.append(loss.item())

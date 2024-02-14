@@ -116,11 +116,12 @@ class ImagePVRDataset(Dataset):
                 new_input[idx.as_index] = quad_image
                 new_intermediate_var = intermediate_var.clone().detach()
                 new_intermediate_var[idx_to_intermediate] = quad_label
+                new_label = self.make_label_from_intermediate(new_intermediate_var)
                 break
-        new_label = self.make_label_from_intermediate(new_intermediate_var)
+                
         return new_input, new_intermediate_var, new_label
     
-    def patch_batch_at_hl(self, batch: list, intermediate_vars: list, hl_node: HLNode):
+    def patch_batch_at_hl(self, batch: list, intermediate_vars: list, hl_node: HLNode, labels: list):
         """
         Patches the input and label to be compatible with the PVR model.
         """ 
