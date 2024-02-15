@@ -57,7 +57,7 @@ def evaluate_model_on_ablations(ll_model: t.nn.Module, task: str, test_set: t.ut
                     # clip to 0 if accuracy is less than unchanged
                     changed_len = changed.sum()
                     # mean accuracy
-                    hookpoint_stats[hl_node] += accuracy.sum() / changed_len
+                    hookpoint_stats[hl_node] += accuracy.sum() / (changed_len + 1e-10)
         for k, v in hookpoint_stats.items():
             hookpoint_stats[k] = v / len(dataloader)
             assert 0 <= hookpoint_stats[k] <= 1, f"hookpoint_stats[hl_node]: {hookpoint_stats[hl_node]}"

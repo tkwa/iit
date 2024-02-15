@@ -9,7 +9,7 @@ def get_dataset(task: str, dataset_config: dict) -> tuple([IITDataset, IITDatase
         default_dataset_args = {
             'pad_size': 7,
             'train_size' : 60000,
-            'test_size' : 6000
+            'test_size' : 10000
         }
         default_dataset_args.update(dataset_config)
         if task == 'mnist_pvr':
