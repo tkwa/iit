@@ -37,6 +37,8 @@ class IITModelPair(BaseModelPair):
         def ll_ablation_hook(hook_point_out:Tensor, hook:HookPoint) -> Tensor:
             out = hook_point_out.clone()
             out[ll_node.index.as_index] = self.ll_cache[hook.name][ll_node.index.as_index]
+            # print("hook:", ll_node.name)
+            # print(out.shape, self.ll_cache[hook.name][ll_node.index.as_index].shape, ll_node.index.as_index)
             return out
         return ll_ablation_hook
 

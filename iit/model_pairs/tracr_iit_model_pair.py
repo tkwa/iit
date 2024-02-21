@@ -9,17 +9,19 @@ class TracrIITModelPair(IITModelPair):
     def __init__(self, hl_model, ll_model, corr, training_args={}):
         super().__init__(hl_model, ll_model, corr=corr, training_args=training_args)
 
+    def get_encoded_input_from_torch_input(self, input): # TODO: refactor this to outside of the class
+        x, y = input
+        encoded_x = self.hl_model.map_tracr_input_to_tl_input(list(map(list, zip(*x))))
+        y[0] = torch.zeros_like((y[1]))
+        return encoded_x, torch.tensor(list(map(list, zip(*y))))
+    
     def do_intervention(self, base_input, ablation_input, hl_node:HookName, verbose=False):
-        ablation_x = list(map(list, zip(*ablation_input)))
-        base_x = list(map(list, zip(*base_input)))
-        encoded_base_x = self.hl_model.map_tracr_input_to_tl_input(base_x)
-        encoded_ablation_x = self.hl_model.map_tracr_input_to_tl_input(ablation_x)
+        encoded_ablation_x, ablation_y = self.get_encoded_input_from_torch_input(ablation_input)
+        encoded_base_x, base_y = self.get_encoded_input_from_torch_input(base_input)
         ablation_intermediate_vars = None # TODO
         base_intermediate_vars = None # TODO
-        
         hl_ablation_output, self.hl_cache = self.hl_model.run_with_cache(encoded_ablation_x)
-        # # TODO: 
-        # # assert all(hl_ablation_output == ablation_y), f"Ablation output {hl_ablation_output} does not match label {ablation_y}"
+        assert torch.allclose(hl_ablation_output.cpu(), ablation_y.unsqueeze(-1).cpu().float()), f"Ablation output {hl_ablation_output} does not match label {ablation_y}" # TODO: fix this!!!
         ll_ablation_output, self.ll_cache = self.ll_model.run_with_cache(encoded_ablation_x)
 
         ll_nodes = self.corr[hl_node]
@@ -33,8 +35,8 @@ class TracrIITModelPair(IITModelPair):
                     for ll_node in ll_nodes])
 
         if verbose:
-            ablation_x_image = torchvision.transforms.functional.to_pil_image(ablation_x[0])
-            ablation_x_image.show()
+            # ablation_x_image = torchvision.transforms.functional.to_pil_image(ablation_x[0])
+            # ablation_x_image.show()
             # print(f"{ablation_x_image=}, {ablation_y.item()=}, {ablation_intermediate_vars=}")
             print(f"{hl_ablation_output=}, {ll_ablation_output.shape=}")
             print(f"{hl_node=}, {ll_nodes=}")
