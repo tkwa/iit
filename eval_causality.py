@@ -10,20 +10,32 @@ import wandb
 from datetime import datetime
 from iit.utils.plotter import plot_ablation_stats
 
-def evaluate_model_on_ablations(ll_model: t.nn.Module, task: str, test_set: t.utils.data.Dataset,
-                                eval_args: dict, verbose: bool = False):
+
+def evaluate_model_on_ablations(
+    ll_model: t.nn.Module,
+    task: str,
+    test_set: t.utils.data.Dataset,
+    eval_args: dict,
+    verbose: bool = False,
+):
     print("reached evaluate_model!")
     stats_per_layer = {}
     for hook_point in tqdm(get_hook_points(ll_model), desc="Hook points"):
-        _, hl_model, corr = get_alignment(task, config={
-            'hook_point': hook_point, 
-            "input_shape": test_set.get_input_shape()
-        })
+        _, hl_model, corr = get_alignment(
+            task,
+            config={
+                "hook_point": hook_point,
+                "input_shape": test_set.get_input_shape(),
+            },
+        )
         model_pair = IITProbeSequentialPair(
-            ll_model=ll_model, hl_model=hl_model, corr=corr)
-        dataloader = t.utils.data.DataLoader( 
-            test_set, batch_size=eval_args['batch_size'], 
-            num_workers=eval_args['num_workers'])
+            ll_model=ll_model, hl_model=hl_model, corr=corr
+        )
+        dataloader = t.utils.data.DataLoader(
+            test_set,
+            batch_size=eval_args["batch_size"],
+            num_workers=eval_args["num_workers"],
+        )
         # set up stats
         hookpoint_stats = {}
         for hl_node, _ in model_pair.corr.items():
@@ -34,18 +46,29 @@ def evaluate_model_on_ablations(ll_model: t.nn.Module, task: str, test_set: t.ut
                 base_input = [x.to(DEVICE) for x in base_input_lists]
                 for hl_node, ll_nodes in model_pair.corr.items():
                     ablated_input = test_set.patch_batch_at_hl(
-                        list(base_input[0]), list(base_input_lists[-1]), hl_node, list(base_input[1]))
-                    ablated_input = (t.stack(ablated_input[0]).to(DEVICE), # input
-                                     t.stack(ablated_input[1]).to(DEVICE), # label
-                                     t.stack(ablated_input[2]).to(DEVICE)) # intermediate_data
+                        list(base_input[0]),
+                        list(base_input_lists[-1]),
+                        hl_node,
+                        list(base_input[1]),
+                    )
+                    ablated_input = (
+                        t.stack(ablated_input[0]).to(DEVICE),  # input
+                        t.stack(ablated_input[1]).to(DEVICE),  # label
+                        t.stack(ablated_input[2]).to(DEVICE),
+                    )  # intermediate_data
                     # unsqueeze if single element
                     if ablated_input[1].shape == ():
-                        assert eval_args['batch_size'] == 1, "Logic error! If batch_size is not 1, then labels should not be a scalar"
-                        ablated_input = (ablated_input[0].unsqueeze(0), 
-                                         ablated_input[1].unsqueeze(0), 
-                                         ablated_input[2].unsqueeze(0))
+                        assert (
+                            eval_args["batch_size"] == 1
+                        ), "Logic error! If batch_size is not 1, then labels should not be a scalar"
+                        ablated_input = (
+                            ablated_input[0].unsqueeze(0),
+                            ablated_input[1].unsqueeze(0),
+                            ablated_input[2].unsqueeze(0),
+                        )
                     hl_output, ll_output = model_pair.do_intervention(
-                        base_input, ablated_input, hl_node.name)
+                        base_input, ablated_input, hl_node.name
+                    )
                     ablated_y = ablated_input[1]
                     base_y = base_input[1]
                     changed = (ablated_y != base_y).float()
@@ -60,7 +83,9 @@ def evaluate_model_on_ablations(ll_model: t.nn.Module, task: str, test_set: t.ut
                     hookpoint_stats[hl_node] += accuracy.sum() / (changed_len + 1e-10)
         for k, v in hookpoint_stats.items():
             hookpoint_stats[k] = v / len(dataloader)
-            assert 0 <= hookpoint_stats[k] <= 1, f"hookpoint_stats[hl_node]: {hookpoint_stats[hl_node]}"
+            assert (
+                0 <= hookpoint_stats[k] <= 1
+            ), f"hookpoint_stats[hl_node]: {hookpoint_stats[hl_node]}"
         stats_per_layer[hook_point] = hookpoint_stats
         # hookpoint_stats = {k: v / len(dataloader) for k, v in hookpoint_stats.items()}
         if verbose:
@@ -71,18 +96,14 @@ def evaluate_model_on_ablations(ll_model: t.nn.Module, task: str, test_set: t.ut
         print(f"stats_per_layer: {stats_per_layer}")
     return stats_per_layer
 
+
 if __name__ == "__main__":
-    task = 'mnist_pvr'
-    leaky_task = 'pvr_leaky'
-    training_args = {
-        'batch_size': 512,
-        'lr': 0.001,
-        'num_workers': 0,
-        'epochs': 5
-    }
+    task = "mnist_pvr"
+    leaky_task = "pvr_leaky"
+    training_args = {"batch_size": 512, "lr": 0.001, "num_workers": 0, "epochs": 5}
     eval_args = {
-        'batch_size': 1024,
-        'num_workers': 0,
+        "batch_size": 1024,
+        "num_workers": 0,
     }
     save_weights = False
     use_wandb = True
@@ -90,12 +111,21 @@ if __name__ == "__main__":
     train = False
     #####################################
     train_set, test_set = get_dataset(task, dataset_config={})
-    ll_model, hl_model, corr = get_alignment(task, config={"input_shape": test_set.get_input_shape()})
-    model_pair = IITProbeSequentialPair(ll_model=ll_model, hl_model=hl_model, 
-                                        corr=corr, training_args=training_args) 
+    ll_model, hl_model, corr = get_alignment(
+        task, config={"input_shape": test_set.get_input_shape()}
+    )
+    model_pair = IITProbeSequentialPair(
+        ll_model=ll_model, hl_model=hl_model, corr=corr, training_args=training_args
+    )
     if train:
-        model_pair.train(train_set, train_set, test_set, test_set, 
-                        epochs=training_args['epochs'], use_wandb=use_wandb)
+        model_pair.train(
+            train_set,
+            train_set,
+            test_set,
+            test_set,
+            epochs=training_args["epochs"],
+            use_wandb=use_wandb,
+        )
     else:
         try:
             model = t.load(f"weights/ll_model/{task}.pt")
@@ -109,7 +139,7 @@ if __name__ == "__main__":
     print(f"evaluating model")
     leaky_train_set, leaky_test_set = get_dataset(leaky_task, dataset_config={})
     ll_model.eval()
-    
+
     if save_weights:
         if not os.path.exists(f"weights/ll_model"):
             os.makedirs(f"weights/ll_model")
@@ -123,10 +153,14 @@ if __name__ == "__main__":
         wandb.config.update(eval_args)
 
     leaky_stats_per_layer = evaluate_model_on_ablations(
-        ll_model=ll_model, task=leaky_task, eval_args=eval_args,
-        test_set=leaky_test_set, verbose=verbose)
-    
+        ll_model=ll_model,
+        task=leaky_task,
+        eval_args=eval_args,
+        test_set=leaky_test_set,
+        verbose=verbose,
+    )
+
     time = datetime.now().strftime("%d_%m_%Y_%H_%M_%S")
-    plot_ablation_stats(leaky_stats_per_layer, prefix=f'{time}', use_wandb=use_wandb)
+    plot_ablation_stats(leaky_stats_per_layer, prefix=f"{time}", use_wandb=use_wandb)
     wandb.finish()
     print("done evaluating\n------------------------------------")

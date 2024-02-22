@@ -7,6 +7,7 @@ class IITDataset(Dataset):
     """
     Each thing is randomly sampled from a pair of datasets.
     """
+
     def __init__(self, base_data, ablation_data, seed=0):
         # For vanilla IIT, base_data and ablation_data are the same
         self.base_data = base_data
@@ -25,4 +26,3 @@ class IITDataset(Dataset):
 
     def __len__(self):
         return len(self.base_data)
-
