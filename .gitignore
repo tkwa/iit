@@ -9,3 +9,4 @@ weights/
 *.pt
 *.npy
 .DS_Store
+*.log
