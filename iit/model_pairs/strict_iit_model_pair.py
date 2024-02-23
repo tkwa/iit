@@ -30,19 +30,21 @@ class TracrStrictIITModelPair(TracrIITModelPair):
         )
         # loss for nodes that are not in the circuit
         # should not have causal effect on the high-level output
-        optimizer.zero_grad()
-        base_x, base_y = self.get_encoded_input_from_torch_input(base_input)
-        ablation_x, _ = self.get_encoded_input_from_torch_input(ablation_input)
-        ll_node = self.sample_ll_node()
-        _, cache = self.ll_model.run_with_cache(ablation_x)
-        self.ll_cache = cache 
-        out = self.ll_model.run_with_hooks(
-            base_x, fwd_hooks=[
-                (ll_node.name, self.make_ll_ablation_hook(ll_node))
-            ])
-        ll_loss = loss_fn(out, base_y.unsqueeze(-1).float().to(self.ll_model.cfg.device))
-        ll_loss.backward()
-        optimizer.step()
-        return (normal_hl_loss + ll_loss.item()) / 2
+        # TODO: add another loss type for this
+        if self.training_args['losses'] == 'all' or self.training_args['losses'] == 'iit':
+            optimizer.zero_grad()
+            base_x, base_y = self.get_encoded_input_from_torch_input(base_input)
+            ablation_x, _ = self.get_encoded_input_from_torch_input(ablation_input)
+            ll_node = self.sample_ll_node()
+            _, cache = self.ll_model.run_with_cache(ablation_x)
+            self.ll_cache = cache 
+            out = self.ll_model.run_with_hooks(
+                base_x, fwd_hooks=[
+                    (ll_node.name, self.make_ll_ablation_hook(ll_node))
+                ])
+            ll_loss = loss_fn(out, base_y.unsqueeze(-1).float().to(self.ll_model.cfg.device))
+            ll_loss.backward()
+            optimizer.step()
+            return (normal_hl_loss + ll_loss.item()) / 2
         
 

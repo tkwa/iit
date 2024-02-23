@@ -33,8 +33,8 @@ def nodes_intersect(a: mp.LLNode, b: mp.LLNode) -> bool:
 def get_nodes_not_in_circuit(
     ll_model: HookedTransformer, hl_ll_corr
 ) -> list[mp.LLNode]:
-    all_nodes = set(get_all_nodes(ll_model))
-    nodes_in_circuit = set(get_nodes_in_circuit(hl_ll_corr))
+    all_nodes = get_all_nodes(ll_model)
+    nodes_in_circuit = get_nodes_in_circuit(hl_ll_corr)
     nodes_not_in_circuit = []
     for node in all_nodes:
         if not any(nodes_intersect(node, c) for c in nodes_in_circuit):

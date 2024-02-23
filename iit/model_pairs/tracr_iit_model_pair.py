@@ -180,7 +180,9 @@ class TracrIITModelPair(IITModelPair):
                     )
                 behavioral_accuracies.append(accuracy.item())
             print(
-                f"Epoch {epoch}: {np.mean((iit_losses + behavior_losses)):.4f},",
+                f"Epoch {epoch}: ",
+                f"iit loss: {np.mean(iit_losses):.4f},",
+                f"behavior loss: {np.mean(behavior_losses):.4f},",
                 f"loss: {np.mean(test_losses):.4f},",
                 f"IIA: {np.mean(IIA)*100:.2f}%,",
                 f"B acc: {np.mean(behavioral_accuracies)*100:.2f}%",
