@@ -44,7 +44,7 @@ class SInhibitionHead(t.nn.Module):
         flag is -1 if no duplicate name here, and name token for the name to inhibit
         """
         ret = tokens.clone()
-        ret[duplicate != -1] = -1
+        ret[duplicate == -1] = -1
         return ret
     
 class NameMoverHead(t.nn.Module):
@@ -114,11 +114,14 @@ class IOI_HL(HookedRootModule):
         # duplicate, previous, induction, s_inhibition, name_mover = [intermediate_data[:, i] for i in range(5)]
         # print(f"intermediate_data is a {type(intermediate_data)}; duplicate is a {type(duplicate)}")
         duplicate = self.duplicate_head(input)
-        duplicate = self.hook_duplicate(duplicate) # used while ablating
+        duplicate = self.hook_duplicate(duplicate)
+        print(f"duplicate: {duplicate}")
         previous = self.previous_head(input)
         previous = self.hook_previous(previous)
+        print(f"previous: {previous}")
         s_inhibition = self.s_inhibition_head(input, duplicate)
         s_inhibition = self.hook_s_inhibition(s_inhibition)
+        print(f"s_inhibition: {s_inhibition}")
         out = self.name_mover_head(input, s_inhibition)
         out = self.hook_name_mover(out)
         return out
