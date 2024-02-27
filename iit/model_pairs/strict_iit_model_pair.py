@@ -8,9 +8,7 @@ class TracrStrictIITModelPair(TracrIITModelPair):
             "batch_size": 256,
             "lr": 0.001,
             "num_workers": 0,
-            "b_lr": 1e-3,
-            "iit_lr": 1e-2,
-            "not_in_circuit_lr": 1e-2,
+            "use_single_loss": False,
         }
         training_args = {**default_training_args, **training_args}
         super().__init__(hl_model, ll_model, corr=corr, training_args=training_args)
@@ -27,13 +25,14 @@ class TracrStrictIITModelPair(TracrIITModelPair):
         ablation_input,
         loss_fn: Callable[[Tensor, Tensor], Tensor],
         optimizer: t.optim.Optimizer,
-        use_single_loss=False,
     ):
         base_input = self.get_encoded_input_from_torch_input(base_input)
         ablation_input = self.get_encoded_input_from_torch_input(ablation_input)
 
         grad_dict = {}
         loss_types = self.training_args["losses"]
+        use_single_loss = self.training_args["use_single_loss"]
+
         if loss_types == "all" or loss_types == "iit":
             optimizer.zero_grad()
             hl_node = self.sample_hl_name()  # sample a high-level variable to ablate
@@ -85,7 +84,7 @@ class TracrStrictIITModelPair(TracrIITModelPair):
                         grad_dict[name] += param.grad.clone()
             else:
                 optimizer.step()
-        
+
         if use_single_loss:
             optimizer.zero_grad()
             # make grads using the grad_dict
@@ -97,7 +96,9 @@ class TracrStrictIITModelPair(TracrIITModelPair):
 
         return {
             "train/iit_loss": (
-                (iit_loss.item() + ll_loss.item()) / 2 if "iit_loss" in locals() else 0.0
+                (iit_loss.item() + ll_loss.item()) / 2
+                if "iit_loss" in locals()
+                else 0.0
             ),
             "train/behavior_loss": (
                 behavior_loss.item() if "behavior_loss" in locals() else 0.0

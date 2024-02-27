@@ -12,6 +12,7 @@ class TracrIITModelPair(IITModelPair):
             "losses": "all",
             "atol": 1e-2,
             "early_stop": True,
+            "use_single_loss": False,
         }
         training_args = {**default_training_args, **training_args}
         super().__init__(hl_model, ll_model, corr=corr, training_args=training_args)
@@ -26,21 +27,21 @@ class TracrIITModelPair(IITModelPair):
     @staticmethod
     def make_train_metrics():
         return MetricStoreCollection(
-                [
-                    MetricStore("train/iit_loss", MetricType.LOSS),
-                    MetricStore("train/behavior_loss", MetricType.LOSS),
-                ]
-            )
+            [
+                MetricStore("train/iit_loss", MetricType.LOSS),
+                MetricStore("train/behavior_loss", MetricType.LOSS),
+            ]
+        )
 
     @staticmethod
     def make_test_metrics():
         return MetricStoreCollection(
-                [
-                    MetricStore("val/iit_loss", MetricType.LOSS),
-                    MetricStore("val/IIA", MetricType.ACCURACY),
-                    MetricStore("val/accuracy", MetricType.ACCURACY),
-                ]
-            )
+            [
+                MetricStore("val/iit_loss", MetricType.LOSS),
+                MetricStore("val/IIA", MetricType.ACCURACY),
+                MetricStore("val/accuracy", MetricType.ACCURACY),
+            ]
+        )
 
     def get_encoded_input_from_torch_input(
         self, input
@@ -95,13 +96,13 @@ class TracrIITModelPair(IITModelPair):
         ablation_input,
         loss_fn: Callable[[Tensor, Tensor], Tensor],
         optimizer: t.optim.Optimizer,
-        use_single_loss=False,
     ):
         grad_dict = {}
         base_input = self.get_encoded_input_from_torch_input(base_input)
         ablation_input = self.get_encoded_input_from_torch_input(ablation_input)
 
         loss_types = self.training_args["losses"]
+        use_single_loss = self.training_args["use_single_loss"]
 
         optimizer.zero_grad()
         if loss_types == "all" or loss_types == "iit":

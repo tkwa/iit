@@ -233,6 +233,7 @@ class IITModelPair(BaseModelPair):
             print(metric, end=", ")
             if use_wandb:
                 wandb.log({metric.get_name(): metric.get_value()})
+        print()
 
     def train(
         self,
@@ -269,9 +270,7 @@ class IITModelPair(BaseModelPair):
                 epoch, train_metrics.metrics + test_metrics.metrics, use_wandb
             )
 
-            if early_stop and self._check_early_stop_condition(
-                test_metrics.metrics
-            ):
+            if early_stop and self._check_early_stop_condition(test_metrics.metrics):
                 break
 
         if use_wandb:
