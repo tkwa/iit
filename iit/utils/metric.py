@@ -29,8 +29,8 @@ class MetricStore:
 
     def __str__(self) -> str:
         if self.type == MetricType.ACCURACY:
-            return f"{self._name}: {float(self.get_value()):2f}%"
-        return f"{self._name}: {self.get_value():4f}"
+            return f"{self._name}: {float(self.get_value()):.2f}%"
+        return f"{self._name}: {self.get_value():.4f}"
     
     def __len__(self):
         return len(self._store)

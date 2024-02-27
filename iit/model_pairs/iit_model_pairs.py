@@ -39,26 +39,22 @@ class IITModelPair(BaseModelPair):
     def loss_fn(self):
         return t.nn.CrossEntropyLoss()
 
-    @property
-    def train_metrics(cls):
-        if not hasattr(cls, "_train_metrics"):
-            cls._train_metrics = MetricStoreCollection(
-                [
-                    MetricStore("iit_loss", MetricType.LOSS),
-                ]
-            )
-        return cls._train_metrics
+    @staticmethod
+    def make_train_metrics():
+        return MetricStoreCollection(
+            [
+                MetricStore("iit_loss", MetricType.LOSS),
+            ]
+        )
 
-    @property
-    def test_metrics(cls):
-        if not hasattr(cls, "_test_metrics"):
-            cls._test_metrics = MetricStoreCollection(
-                [
-                    MetricStore("iit_loss", MetricType.LOSS),
-                    MetricStore("accuracy", MetricType.ACCURACY),
-                ]
-            )
-        return cls._test_metrics
+    @staticmethod
+    def make_test_metrics():
+        return MetricStoreCollection(
+            [
+                MetricStore("iit_loss", MetricType.LOSS),
+                MetricStore("accuracy", MetricType.ACCURACY),
+            ]
+        )
 
     def make_hl_model(self, hl_graph):
         raise NotImplementedError
@@ -191,22 +187,27 @@ class IITModelPair(BaseModelPair):
         return {"iit_loss": loss.item()}
 
     @final
-    def _run_train_epoch(self, loader, loss_fn, optimizer):
+    def _run_train_epoch(self, loader, loss_fn, optimizer) -> MetricStoreCollection:
         self.ll_model.train()
+        train_metrics = self.make_train_metrics()
         for i, (base_input, ablation_input) in tqdm(
             enumerate(loader), total=len(loader)
         ):
-            self.train_metrics.update(
+            train_metrics.update(
                 self.run_train_step(base_input, ablation_input, loss_fn, optimizer)
             )
+        return train_metrics
 
     @final
-    def _run_eval_epoch(self, loader, loss_fn) -> list[MetricStore]:
+    def _run_eval_epoch(self, loader, loss_fn) -> MetricStoreCollection:
         self.ll_model.eval()
+        test_metrics = self.make_test_metrics()
         with t.no_grad():
             for i, (base_input, ablation_input) in enumerate(loader):
-                test_metrics = self.run_eval_step(base_input, ablation_input, loss_fn)
-                self.test_metrics.update(test_metrics)
+                test_metrics.update(
+                    self.run_eval_step(base_input, ablation_input, loss_fn)
+                )
+        return test_metrics
 
     @final
     @staticmethod
@@ -227,7 +228,7 @@ class IITModelPair(BaseModelPair):
     @final
     @staticmethod
     def _print_and_log_metrics(epoch, metrics, use_wandb=False):
-        print(f"Epoch {epoch}:", end=" ")
+        print(f"\nEpoch {epoch}:", end=" ")
         for metric in metrics:
             print(metric, end=", ")
             if use_wandb:
@@ -261,15 +262,15 @@ class IITModelPair(BaseModelPair):
             wandb.config.update({"method": self.wandb_method})
 
         for epoch in tqdm(range(epochs)):
-            self._run_train_epoch(loader, loss_fn, optimizer)
-            self._run_eval_epoch(test_loader, loss_fn)
+            train_metrics = self._run_train_epoch(loader, loss_fn, optimizer)
+            test_metrics = self._run_eval_epoch(test_loader, loss_fn)
 
             self._print_and_log_metrics(
-                epoch, self.train_metrics.metrics + self.test_metrics.metrics, use_wandb
+                epoch, train_metrics.metrics + test_metrics.metrics, use_wandb
             )
 
             if early_stop and self._check_early_stop_condition(
-                self.test_metrics.metrics
+                test_metrics.metrics
             ):
                 break
 

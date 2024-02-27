@@ -23,28 +23,24 @@ class TracrIITModelPair(IITModelPair):
         else:
             return t.nn.MSELoss()
 
-    @property
-    def train_metrics(cls):
-        if not hasattr(cls, "_train_metrics"):
-            cls._train_metrics = MetricStoreCollection(
+    @staticmethod
+    def make_train_metrics():
+        return MetricStoreCollection(
                 [
                     MetricStore("train/iit_loss", MetricType.LOSS),
                     MetricStore("train/behavior_loss", MetricType.LOSS),
                 ]
             )
-        return cls._train_metrics
 
-    @property
-    def test_metrics(cls):
-        if not hasattr(cls, "_test_metrics"):
-            cls._test_metrics = MetricStoreCollection(
+    @staticmethod
+    def make_test_metrics():
+        return MetricStoreCollection(
                 [
                     MetricStore("val/iit_loss", MetricType.LOSS),
                     MetricStore("val/IIA", MetricType.ACCURACY),
                     MetricStore("val/accuracy", MetricType.ACCURACY),
                 ]
             )
-        return cls._test_metrics
 
     def get_encoded_input_from_torch_input(
         self, input
