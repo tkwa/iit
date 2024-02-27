@@ -1,4 +1,6 @@
 from iit.model_pairs.base_model_pair import *
+from iit.utils.metric import *
+from typing import final
 
 
 class IITModelPair(BaseModelPair):
@@ -27,9 +29,32 @@ class IITModelPair(BaseModelPair):
             "batch_size": 256,
             "lr": 0.001,
             "num_workers": 0,
+            "early_stop": True,
         }
         training_args = {**default_training_args, **training_args}
         self.training_args = training_args
+        self.wandb_method = "iit"
+
+    @property
+    def loss_fn(self):
+        return t.nn.CrossEntropyLoss()
+
+    @staticmethod
+    def make_train_metrics():
+        return MetricStoreCollection(
+            [
+                MetricStore("iit_loss", MetricType.LOSS),
+            ]
+        )
+
+    @staticmethod
+    def make_test_metrics():
+        return MetricStoreCollection(
+            [
+                MetricStore("iit_loss", MetricType.LOSS),
+                MetricStore("accuracy", MetricType.ACCURACY),
+            ]
+        )
 
     def make_hl_model(self, hl_graph):
         raise NotImplementedError
@@ -93,18 +118,43 @@ class IITModelPair(BaseModelPair):
             print(f"{hl_output=}")
         return hl_output, ll_output
 
+    def make_loaders(
+        self, base_data, ablation_data, test_base_data, test_ablation_data
+    ):
+        training_args = self.training_args
+        dataset = IITDataset(base_data, ablation_data)
+        test_dataset = IITDataset(test_base_data, test_ablation_data)
+        loader = DataLoader(
+            dataset,
+            batch_size=training_args["batch_size"],
+            shuffle=True,
+            num_workers=training_args["num_workers"],
+        )
+        test_loader = DataLoader(
+            test_dataset,
+            batch_size=training_args["batch_size"],
+            shuffle=True,
+            num_workers=training_args["num_workers"],
+        )
+        return loader, test_loader
+
     def run_eval_step(
         self,
         base_input,
         ablation_input,
-        hl_node: HookName,
         loss_fn: Callable[[Tensor, Tensor], Tensor],
     ):
+        base_input = [t.to(DEVICE) for t in base_input]
+        ablation_input = [t.to(DEVICE) for t in ablation_input]
+        hl_node = self.sample_hl_name()
         hl_output, ll_output = self.do_intervention(base_input, ablation_input, hl_node)
         loss = loss_fn(ll_output, hl_output)
         top1 = t.argmax(ll_output, dim=-1)
         accuracy = (top1 == hl_output).float().mean()
-        return loss, accuracy
+        return {
+            "iit_loss": loss.item(),
+            "accuracy": accuracy.item(),
+        }
 
     def get_IIT_loss_over_batch(
         self,
@@ -121,51 +171,69 @@ class IITModelPair(BaseModelPair):
         self,
         base_input,
         ablation_input,
-        hl_node: HookName,
         loss_fn: Callable[[Tensor, Tensor], Tensor],
         optimizer: t.optim.Optimizer,
     ):
+        base_input = [t.to(DEVICE) for t in base_input]  # TODO: refactor to remove this
+        ablation_input = [t.to(DEVICE) for t in ablation_input]
+
         optimizer.zero_grad()
+        hl_node = self.sample_hl_name()  # sample a high-level variable to ablate
         loss = self.get_IIT_loss_over_batch(
             base_input, ablation_input, hl_node, loss_fn
         )
         loss.backward()
         optimizer.step()
-        return loss.item()
+        return {"iit_loss": loss.item()}
 
-    def _run_train_epoch(self, loader, loss_fn, optimizer):
-        losses = []
+    @final
+    def _run_train_epoch(self, loader, loss_fn, optimizer) -> MetricStoreCollection:
         self.ll_model.train()
+        train_metrics = self.make_train_metrics()
         for i, (base_input, ablation_input) in tqdm(
             enumerate(loader), total=len(loader)
         ):
-            base_input = [
-                t.to(DEVICE) for t in base_input
-            ]  # TODO: refactor to remove this
-            ablation_input = [t.to(DEVICE) for t in ablation_input]
-            hl_node = self.sample_hl_name()  # sample a high-level variable to ablate
-            losses.append(
-                self.run_train_step(
-                    base_input, ablation_input, hl_node, loss_fn, optimizer
-                )
+            train_metrics.update(
+                self.run_train_step(base_input, ablation_input, loss_fn, optimizer)
             )
-        return losses
+        return train_metrics
 
-    def _run_eval_epoch(self, loader, loss_fn):
-        test_losses = []
-        accuracies = []
+    @final
+    def _run_eval_epoch(self, loader, loss_fn) -> MetricStoreCollection:
         self.ll_model.eval()
+        test_metrics = self.make_test_metrics()
         with t.no_grad():
             for i, (base_input, ablation_input) in enumerate(loader):
-                base_input = [t.to(DEVICE) for t in base_input]
-                ablation_input = [t.to(DEVICE) for t in ablation_input]
-                hl_node = self.sample_hl_name()
-                loss, accuracy = self.run_eval_step(
-                    base_input, ablation_input, hl_node, loss_fn
+                test_metrics.update(
+                    self.run_eval_step(base_input, ablation_input, loss_fn)
                 )
-                accuracies.append(accuracy.item())
-                test_losses.append(loss.item())
-        return test_losses, accuracies
+        return test_metrics
+
+    @final
+    @staticmethod
+    def _check_early_stop_condition(test_metrics):
+        """
+        Returns True if all types of accuracy metrics are above 0.99
+        """
+        got_accuracy_metric = False
+        for metric in test_metrics:
+            if metric.type == MetricType.ACCURACY:
+                got_accuracy_metric = True
+                if metric.get_value() < 99:
+                    return False
+        if not got_accuracy_metric:
+            raise ValueError("No accuracy metric found in test_metrics!")
+        return True
+
+    @final
+    @staticmethod
+    def _print_and_log_metrics(epoch, metrics, use_wandb=False):
+        print(f"\nEpoch {epoch}:", end=" ")
+        for metric in metrics:
+            print(metric, end=", ")
+            if use_wandb:
+                wandb.log({metric.get_name(): metric.get_value()})
+        print()
 
     def train(
         self,
@@ -178,45 +246,32 @@ class IITModelPair(BaseModelPair):
     ):
         training_args = self.training_args
         print(f"{training_args=}")
-        dataset = IITDataset(base_data, ablation_data)
-        test_dataset = IITDataset(test_base_data, test_ablation_data)
-        loader = DataLoader(
-            dataset,
-            batch_size=training_args["batch_size"],
-            shuffle=True,
-            num_workers=training_args["num_workers"],
-        )
-        test_loader = DataLoader(
-            test_dataset,
-            batch_size=training_args["batch_size"],
-            shuffle=True,
-            num_workers=training_args["num_workers"],
+
+        early_stop = training_args["early_stop"]
+
+        loader, test_loader = self.make_loaders(
+            base_data, ablation_data, test_base_data, test_ablation_data
         )
         optimizer = t.optim.Adam(self.ll_model.parameters(), lr=training_args["lr"])
-        loss_fn = t.nn.CrossEntropyLoss()
+        loss_fn = self.loss_fn
 
         if use_wandb and not wandb.run:
             wandb.init(project="iit", entity=WANDB_ENTITY)
 
         if use_wandb:
             wandb.config.update(training_args)
-            wandb.config.update({"method": "IIT"})
+            wandb.config.update({"method": self.wandb_method})
 
         for epoch in tqdm(range(epochs)):
-            losses = self._run_train_epoch(loader, loss_fn, optimizer)
-            test_losses, accuracies = self._run_eval_epoch(test_loader, loss_fn)
-            print(
-                f"Epoch {epoch}: {np.mean(losses):.4f}, \
-                   {np.mean(test_losses):.4f}, \
-                    {np.mean(accuracies)*100:.4f}%"
+            train_metrics = self._run_train_epoch(loader, loss_fn, optimizer)
+            test_metrics = self._run_eval_epoch(test_loader, loss_fn)
+
+            self._print_and_log_metrics(
+                epoch, train_metrics.metrics + test_metrics.metrics, use_wandb
             )
 
-            if use_wandb:
-                wandb.log(
-                    {
-                        "train loss": np.mean(losses),
-                        "test loss": np.mean(test_losses),
-                        "accuracy": np.mean(accuracies),
-                        "epoch": epoch,
-                    }
-                )
+            if early_stop and self._check_early_stop_condition(test_metrics.metrics):
+                break
+
+        if use_wandb:
+            wandb.log({"final epoch": epoch})

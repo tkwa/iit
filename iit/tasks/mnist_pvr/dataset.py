@@ -157,7 +157,7 @@ class ImagePVRDataset(Dataset):
         return new_input, new_intermediate_var, new_label
 
     def patch_batch_at_hl(
-        self, batch: list, intermediate_vars: list, hl_node: HLNode, labels: list
+        self, batch: list, intermediate_vars: list, hl_node: HLNode
     ):
         """
         Patches the input and label to be compatible with the PVR model.
