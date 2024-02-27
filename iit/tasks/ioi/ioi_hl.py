@@ -62,11 +62,9 @@ class NameMoverHead(t.nn.Module):
         name_mask = tokens.eq(self.names[:, None]).any(dim=0)
         logits[t.arange(len(tokens)), tokens] = 10 * name_mask.float()
         # now decrease the logit of the names that are inhibited
-        logits[t.arange(len(tokens)), s_inhibition] += -5 * s_inhibition.ne(-1).float()
+        logits[t.arange(len(tokens)), s_inhibition] += -15 * s_inhibition.ne(-1).float()
         logits = t.cumsum(logits, dim=0)
         return logits
-
-PreviousHead()(t.tensor([3, 1, 4, 1, 5, 9, 2, 6, 5]))
         
 # %%
         
@@ -108,23 +106,22 @@ class IOI_HL(HookedRootModule):
     #     else:
     #         raise NotImplementedError(name)
 
-    def forward(self, args):
+    def forward(self, args, verbose=False):
+        show = print if verbose else lambda *args, **kwargs: None
         input, label, _intermediate_data = args
         # print([a.shape for a in args])
         # duplicate, previous, induction, s_inhibition, name_mover = [intermediate_data[:, i] for i in range(5)]
         # print(f"intermediate_data is a {type(intermediate_data)}; duplicate is a {type(duplicate)}")
         duplicate = self.duplicate_head(input)
         duplicate = self.hook_duplicate(duplicate)
-        print(f"duplicate: {duplicate}")
+        show(f"duplicate: {duplicate}")
         previous = self.previous_head(input)
         previous = self.hook_previous(previous)
-        print(f"previous: {previous}")
+        show(f"previous: {previous}")
         s_inhibition = self.s_inhibition_head(input, duplicate)
         s_inhibition = self.hook_s_inhibition(s_inhibition)
-        print(f"s_inhibition: {s_inhibition}")
+        show(f"s_inhibition: {s_inhibition}")
         out = self.name_mover_head(input, s_inhibition)
         out = self.hook_name_mover(out)
         return out
-    
-IOI_HL(device='cuda')((t.tensor([3, 1, 4, 1, 5, 9, 2, 6, 5]), None, None))
 # %%
