@@ -7,9 +7,9 @@ training_args = {
     'num_workers': 0,
 }
 dataset_config = {
-    'train_size': 60,
-    'test_size': 10,
-    'batch_size': 10,
+    'train_size': 60000,
+    'test_size': 10000,
+    'batch_size': 256,
     'num_workers': 0,
 
 }
