@@ -99,12 +99,14 @@ class TracrIITModelPair(IITModelPair):
         loss_fn: Callable[[Tensor, Tensor], Tensor],
         optimizer: t.optim.Optimizer,
     ):
-        grad_dict = {}
         base_input = self.get_encoded_input_from_torch_input(base_input)
         ablation_input = self.get_encoded_input_from_torch_input(ablation_input)
 
         loss_types = self.training_args["losses"]
         use_single_loss = self.training_args["use_single_loss"]
+
+        iit_loss = 0
+        behavior_loss = 0
 
         optimizer.zero_grad()
         if loss_types == "all" or loss_types == "iit":
@@ -112,32 +114,21 @@ class TracrIITModelPair(IITModelPair):
             iit_loss = self.get_IIT_loss_over_batch(
                 base_input, ablation_input, hl_node, loss_fn
             )
-            iit_loss.backward()
-            if use_single_loss:
-                for name, param in self.ll_model.named_parameters():
-                    if param.grad is not None:
-                        grad_dict[name] = param.grad.clone()
-            else:
+            if not use_single_loss:
+                iit_loss.backward()
                 optimizer.step()
 
-        optimizer.zero_grad()
         if loss_types == "all" or loss_types == "behaviour":
+            if not use_single_loss:
+                optimizer.zero_grad()
             behavior_loss = self.get_behaviour_loss_over_batch(base_input, loss_fn)
-            behavior_loss.backward()
-            if use_single_loss:
-                for name, param in self.ll_model.named_parameters():
-                    if param.grad is not None:
-                        grad_dict[name] += param.grad.clone()
-            else:
+            if not use_single_loss:
+                behavior_loss.backward()
                 optimizer.step()
 
         if use_single_loss:
-            optimizer.zero_grad()
-            # make grads using the grad_dict
-            for k, v in grad_dict.items():
-                # find model parameter by name
-                param = next(p for n, p in self.ll_model.named_parameters() if n == k)
-                param.grad = v
+            total_loss = iit_loss + behavior_loss
+            total_loss.backward()
             optimizer.step()
 
         return {
