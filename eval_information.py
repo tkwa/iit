@@ -87,15 +87,15 @@ def evaluate_model_on_probes(
 if __name__ == "__main__":
     task = "mnist_pvr"
     leaky_task = "pvr_leaky"
-    training_args = {"batch_size": 512, "lr": 0.001, "num_workers": 0, "epochs": 5}
+    training_args = {"batch_size": 512, "lr": 0.001, "num_workers": 0, "epochs": 1}
     save_weights = False
     probe_training_args = {
         "batch_size": 1024,
         "lr": 0.001,
         "num_workers": 0,
-        "epochs": 10,
+        "epochs": 1,
     }
-    use_wandb = True
+    use_wandb = False
     reduction = "max"
     #####################################
     train_set, test_set = get_dataset(task, dataset_config={})

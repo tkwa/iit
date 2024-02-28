@@ -16,6 +16,7 @@ class TracrIITModelPair(IITModelPair):
         }
         training_args = {**default_training_args, **training_args}
         super().__init__(hl_model, ll_model, corr=corr, training_args=training_args)
+        self.wandb_method = "tracr_iit"
 
     @property
     def loss_fn(self):
@@ -46,6 +47,7 @@ class TracrIITModelPair(IITModelPair):
     def get_encoded_input_from_torch_input(
         self, input
     ):  # TODO: refactor this to outside of the class
+        """Encode input to the format expected by the model"""
         x, y = input
         encoded_x = self.hl_model.map_tracr_input_to_tl_input(list(map(list, zip(*x))))
         y[0] = torch.zeros_like((y[1]))
