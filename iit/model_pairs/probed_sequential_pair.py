@@ -26,7 +26,6 @@ class IITProbeSequentialPair(IITModelPair):
         self,
         base_input,
         ablation_input,
-        hl_node,
         loss_fn,
         optimizer,
         probes,
@@ -34,8 +33,8 @@ class IITProbeSequentialPair(IITModelPair):
         training_args,
     ):
         ablation_loss = super().run_train_step(
-            base_input, ablation_input, hl_node, loss_fn, optimizer
-        )
+            base_input, ablation_input, loss_fn, optimizer
+        )["iit_loss"]
         # !!! Second forward pass
         # add probe losses and behavior loss
         probe_losses = []
@@ -121,7 +120,7 @@ class IITProbeSequentialPair(IITModelPair):
             wandb.config.update({"method": "IIT + Probes (Sequential)"})
 
         for epoch in tqdm(range(epochs)):
-            losses = []
+            iit_losses = []
             probe_losses = []
             behavior_losses = []
             self.ll_model.train()
@@ -130,22 +129,18 @@ class IITProbeSequentialPair(IITModelPair):
             ):
                 base_input = [t.to(DEVICE) for t in base_input]
                 ablation_input = [t.to(DEVICE) for t in ablation_input]
-                hl_node = (
-                    self.sample_hl_name()
-                )  # sample a high-level variable to ablate
-                losses = self.run_train_step(
+                train_losses = self.run_train_step(
                     base_input,
                     ablation_input,
-                    hl_node,
                     loss_fn,
                     optimizer,
                     probes,
                     probe_optimizer,
                     training_args,
                 )
-                losses.append(losses["ablation_loss"])
-                probe_losses.append(losses["probe_loss"])
-                behavior_losses.append(losses["behavior_loss"])
+                iit_losses.append(train_losses["ablation_loss"])
+                probe_losses.append(train_losses["probe_loss"])
+                behavior_losses.append(train_losses["behavior_loss"])
 
             # now calculate test loss
             test_losses = []
@@ -161,12 +156,11 @@ class IITProbeSequentialPair(IITModelPair):
             self.hl_model.requires_grad_(False)
             with t.no_grad():
                 for i, (base_input, ablation_input) in enumerate(test_loader):
-                    hl_node = self.sample_hl_name()
-                    loss, accuracy = self.run_eval_step(
-                        base_input, ablation_input, hl_node, loss_fn
+                    output = self.run_eval_step(
+                        base_input, ablation_input, loss_fn
                     )
-                    accuracies.append(accuracy.item())
-                    test_losses.append(loss.item())
+                    accuracies.append(output["accuracy"])
+                    test_losses.append(output["iit_loss"])
 
                     # !!! Second forward pass
                     # add probe losses and accuracies
@@ -199,13 +193,13 @@ class IITProbeSequentialPair(IITModelPair):
                     probe_accuracies.append(probe_accuracy.item())
 
             print(
-                f"Epoch {epoch}: {np.mean(losses):.4f}, \n Test: {np.mean(test_losses):.4f}, {np.mean(accuracies)*100:.4f}%, \nProbe: {np.mean(probe_accuracies)*100:.4f}%, {np.mean(test_probe_losses):.4f}, \nBehavior: {np.mean(behavior_accuracies)*100:.4f}%, {np.mean(test_behavior_losses):.4f}"
+                f"Epoch {epoch}: {np.mean(iit_losses):.4f}, \n Test: {np.mean(test_losses):.4f}, {np.mean(accuracies)*100:.4f}%, \nProbe: {np.mean(probe_accuracies)*100:.4f}%, {np.mean(test_probe_losses):.4f}, \nBehavior: {np.mean(behavior_accuracies)*100:.4f}%, {np.mean(test_behavior_losses):.4f}"
             )
 
             if use_wandb:
                 wandb.log(
                     {
-                        "train IIT loss": np.mean(losses),
+                        "train IIT loss": np.mean(iit_losses),
                         "train probe loss": np.mean(probe_losses),
                         "train behavior loss": np.mean(behavior_losses),
                         "test loss": np.mean(test_losses),
