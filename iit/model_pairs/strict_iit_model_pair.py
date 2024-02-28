@@ -47,17 +47,6 @@ class TracrStrictIITModelPair(TracrIITModelPair):
             else:
                 optimizer.step()
 
-        if loss_types == "all" or loss_types == "behaviour":
-            optimizer.zero_grad()
-            behavior_loss = self.get_behaviour_loss_over_batch(base_input, loss_fn)
-            behavior_loss.backward()
-            if use_single_loss:
-                for name, param in self.ll_model.named_parameters():
-                    if param.grad is not None:
-                        grad_dict[name] += param.grad.clone()
-            else:
-                optimizer.step()
-
         # loss for nodes that are not in the circuit
         # should not have causal effect on the high-level output
         # TODO: add another loss type for this
@@ -78,6 +67,17 @@ class TracrStrictIITModelPair(TracrIITModelPair):
                 out, base_y.unsqueeze(-1).float().to(self.ll_model.cfg.device)
             )
             ll_loss.backward()
+            if use_single_loss:
+                for name, param in self.ll_model.named_parameters():
+                    if param.grad is not None:
+                        grad_dict[name] += param.grad.clone()
+            else:
+                optimizer.step()
+
+        if loss_types == "all" or loss_types == "behaviour":
+            optimizer.zero_grad()
+            behavior_loss = self.get_behaviour_loss_over_batch(base_input, loss_fn)
+            behavior_loss.backward()
             if use_single_loss:
                 for name, param in self.ll_model.named_parameters():
                     if param.grad is not None:
