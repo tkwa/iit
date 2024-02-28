@@ -1,6 +1,6 @@
 import pytest
 import torch as t
-from ioi_hl import *
+from .ioi_hl import *
 
 
 def test_duplicate_head():
