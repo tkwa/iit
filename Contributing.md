@@ -16,7 +16,6 @@ To create a new class of model pairs, you need to do the following:
     def make_test_metrics() -> MetricStoreCollection:
         pass
     
-    @abstractmethod
     def run_train_step(
         self,
         base_input, # batch of clean inputs
@@ -26,7 +25,6 @@ To create a new class of model pairs, you need to do the following:
     ) -> MetricStoreCollection:
         pass
 
-    @abstractmethod
     def run_eval_step(
         self,
         base_input,
