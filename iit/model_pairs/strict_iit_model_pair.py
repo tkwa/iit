@@ -29,22 +29,21 @@ class TracrStrictIITModelPair(TracrIITModelPair):
         base_input = self.get_encoded_input_from_torch_input(base_input)
         ablation_input = self.get_encoded_input_from_torch_input(ablation_input)
 
-        grad_dict = {}
         loss_types = self.training_args["losses"]
         use_single_loss = self.training_args["use_single_loss"]
 
+        iit_loss = 0
+        ll_loss = 0
+        behavior_loss = 0
+
+        optimizer.zero_grad()
         if loss_types == "all" or loss_types == "iit":
-            optimizer.zero_grad()
             hl_node = self.sample_hl_name()  # sample a high-level variable to ablate
             iit_loss = self.get_IIT_loss_over_batch(
                 base_input, ablation_input, hl_node, loss_fn
             )
-            iit_loss.backward()
-            if use_single_loss:
-                for name, param in self.ll_model.named_parameters():
-                    if param.grad is not None:
-                        grad_dict[name] = param.grad.clone()
-            else:
+            if not use_single_loss:
+                iit_loss.backward()
                 optimizer.step()
 
         # loss for nodes that are not in the circuit
@@ -54,7 +53,8 @@ class TracrStrictIITModelPair(TracrIITModelPair):
             self.training_args["losses"] == "all"
             or self.training_args["losses"] == "iit"
         ):
-            optimizer.zero_grad()
+            if not use_single_loss:
+                optimizer.zero_grad()
             base_x, base_y = base_input
             ablation_x, _ = ablation_input
             ll_node = self.sample_ll_node()
@@ -66,32 +66,21 @@ class TracrStrictIITModelPair(TracrIITModelPair):
             ll_loss = loss_fn(
                 out, base_y.unsqueeze(-1).float().to(self.ll_model.cfg.device)
             )
-            ll_loss.backward()
-            if use_single_loss:
-                for name, param in self.ll_model.named_parameters():
-                    if param.grad is not None:
-                        grad_dict[name] += param.grad.clone()
-            else:
+            if not use_single_loss:
+                ll_loss.backward()
                 optimizer.step()
 
         if loss_types == "all" or loss_types == "behaviour":
-            optimizer.zero_grad()
+            if not use_single_loss:
+                optimizer.zero_grad()
             behavior_loss = self.get_behaviour_loss_over_batch(base_input, loss_fn)
-            behavior_loss.backward()
-            if use_single_loss:
-                for name, param in self.ll_model.named_parameters():
-                    if param.grad is not None:
-                        grad_dict[name] += param.grad.clone()
-            else:
+            if not use_single_loss:
+                behavior_loss.backward()
                 optimizer.step()
 
         if use_single_loss:
-            optimizer.zero_grad()
-            # make grads using the grad_dict
-            for k, v in grad_dict.items():
-                # find model parameter by name
-                param = next(p for n, p in self.ll_model.named_parameters() if n == k)
-                param.grad = v
+            total_loss = iit_loss + behavior_loss + ll_loss
+            total_loss.backward()
             optimizer.step()
 
         return {
