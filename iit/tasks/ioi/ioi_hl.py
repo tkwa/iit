@@ -10,8 +10,6 @@ from iit.model_pairs.base_model_pair import HLNode, LLNode
 from iit.utils.index import Ix
 # from .utils import *
 
-# TODO change to support batching
-
 # %%
 
 IOI_NAMES = t.tensor([10, 20, 30]) # TODO
