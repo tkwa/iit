@@ -1,6 +1,6 @@
 import pytest
 import torch as t
-from ioi_hl import *
+from .ioi_hl import *
 
 def nonzero_values(a: t.Tensor):
     return t.cat((a.nonzero(), a[a != 0][:, None]), dim=-1)
