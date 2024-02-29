@@ -69,6 +69,7 @@ class BaseModelPair(ABC):
     training_args: dict[str, Any]
     wandb_method: str
     rng: np.random.Generator
+    dataset_class: type[IITDataset]
 
     ##########################################
     # Abstract methods you need to implement #
@@ -87,7 +88,7 @@ class BaseModelPair(ABC):
     @abstractmethod
     def make_test_metrics() -> MetricStoreCollection:
         pass
-    
+
     @abstractmethod
     def run_train_step(
         self,
@@ -106,7 +107,7 @@ class BaseModelPair(ABC):
         loss_fn: Callable[[Tensor, Tensor], Tensor],
     ) -> MetricStoreCollection:
         pass
-    
+
     ###########################################
     ##### Mutable methods you can override ####
     ###########################################
@@ -117,8 +118,8 @@ class BaseModelPair(ABC):
         base_x, base_y, base_intermediate_vars = base_input
         hl_ablation_output, self.hl_cache = self.hl_model.run_with_cache(ablation_input)
 
-        assert all(
-            hl_ablation_output == ablation_y
+        assert torch.allclose(
+            hl_ablation_output.squeeze(), ablation_y
         ), f"Ablation output {hl_ablation_output} does not match label {ablation_y}"
 
         ll_ablation_output, self.ll_cache = self.ll_model.run_with_cache(ablation_x)
@@ -141,7 +142,7 @@ class BaseModelPair(ABC):
             print(f"{hl_node=}, {ll_nodes=}")
             print(f"{hl_output=}")
         return hl_output, ll_output
-    
+
     def make_hl_model(self, hl_graph):
         raise NotImplementedError
 
@@ -183,43 +184,31 @@ class BaseModelPair(ABC):
         loss = loss_fn(ll_output, hl_output)
         return loss
 
-    def make_loaders(
-        self, base_data, ablation_data, test_base_data, test_ablation_data
-    ):
-        training_args = self.training_args
-        dataset = IITDataset(base_data, ablation_data)
-        test_dataset = IITDataset(test_base_data, test_ablation_data)
-        loader = DataLoader(
-            dataset,
-            batch_size=training_args["batch_size"],
-            shuffle=True,
-            num_workers=training_args["num_workers"],
-        )
-        test_loader = DataLoader(
-            test_dataset,
-            batch_size=training_args["batch_size"],
-            shuffle=True,
-            num_workers=training_args["num_workers"],
-        )
-        return loader, test_loader
-
     def train(
         self,
-        base_data,
-        ablation_data,
-        test_base_data,
-        test_ablation_data,
+        train_set,
+        test_set,
         epochs=1000,
         use_wandb=False,
     ):
         training_args = self.training_args
         print(f"{training_args=}")
 
+        assert isinstance(train_set, IITDataset), ValueError(
+            f"train_set is not an instance of IITDataset, but {type(train_set)}"
+        )
+        assert isinstance(test_set, IITDataset), ValueError(
+            f"test_set is not an instance of IITDataset, but {type(test_set)}"
+        )
+        train_loader, test_loader = self.make_loaders(
+            train_set,
+            test_set,
+            training_args["batch_size"],
+            training_args["num_workers"],
+        )
+
         early_stop = training_args["early_stop"]
 
-        loader, test_loader = self.make_loaders(
-            base_data, ablation_data, test_base_data, test_ablation_data
-        )
         optimizer = t.optim.Adam(self.ll_model.parameters(), lr=training_args["lr"])
         loss_fn = self.loss_fn
 
@@ -231,7 +220,7 @@ class BaseModelPair(ABC):
             wandb.config.update({"method": self.wandb_method})
 
         for epoch in tqdm(range(epochs)):
-            train_metrics = self._run_train_epoch(loader, loss_fn, optimizer)
+            train_metrics = self._run_train_epoch(train_loader, loss_fn, optimizer)
             test_metrics = self._run_eval_epoch(test_loader, loss_fn)
 
             self._print_and_log_metrics(
@@ -243,6 +232,21 @@ class BaseModelPair(ABC):
 
         if use_wandb:
             wandb.log({"final epoch": epoch})
+
+    #########################################
+    # Immutable methods- might change later #
+    #########################################
+    @final
+    @staticmethod
+    def make_loaders(
+        dataset: IITDataset,
+        test_dataset: IITDataset,
+        batch_size,
+        num_workers,
+    ):
+        loader = dataset.make_loader(batch_size, num_workers)
+        test_loader = test_dataset.make_loader(batch_size, num_workers)
+        return loader, test_loader
 
     @final
     def _run_train_epoch(self, loader, loss_fn, optimizer) -> MetricStoreCollection:
@@ -267,9 +271,6 @@ class BaseModelPair(ABC):
                 )
         return test_metrics
 
-    #########################################
-    # Immutable methods- might change later #
-    #########################################
     @final
     @staticmethod
     def _check_early_stop_condition(test_metrics):

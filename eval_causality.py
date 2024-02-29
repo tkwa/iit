@@ -120,8 +120,6 @@ if __name__ == "__main__":
     if train:
         model_pair.train(
             train_set,
-            train_set,
-            test_set,
             test_set,
             epochs=training_args["epochs"],
             use_wandb=use_wandb,
@@ -156,7 +154,7 @@ if __name__ == "__main__":
         ll_model=ll_model,
         task=leaky_task,
         eval_args=eval_args,
-        test_set=leaky_test_set,
+        test_set=leaky_test_set.base_data,
         verbose=verbose,
     )
 

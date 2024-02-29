@@ -74,17 +74,13 @@ class IITProbeSequentialPair(IITModelPair):
 
     def train(
         self,
-        base_data,
-        ablation_data,
-        test_base_data,
-        test_ablation_data,
+        dataset,
+        test_dataset,
         epochs=1000,
         use_wandb=False,
     ):
         training_args = self.training_args
         print(f"{training_args=}")
-        dataset = IITDataset(base_data, ablation_data)
-        test_dataset = IITDataset(test_base_data, test_ablation_data)
 
         # add to make probes
         input_shape = (dataset[0][0][0]).unsqueeze(0).shape
@@ -92,18 +88,7 @@ class IITProbeSequentialPair(IITModelPair):
             probes = construct_probes(self, input_shape)
             print("made probes", [(k, p.weight.shape) for k, p in probes.items()])
 
-        loader = DataLoader(
-            dataset,
-            batch_size=training_args["batch_size"],
-            shuffle=True,
-            num_workers=training_args["num_workers"],
-        )
-        test_loader = DataLoader(
-            test_dataset,
-            batch_size=training_args["batch_size"],
-            shuffle=True,
-            num_workers=training_args["num_workers"],
-        )
+        loader, test_loader = self.make_loaders(dataset, test_dataset)
         params = list(self.ll_model.parameters())
         for p in probes.values():
             params += list(p.parameters())
@@ -127,8 +112,6 @@ class IITProbeSequentialPair(IITModelPair):
             for i, (base_input, ablation_input) in tqdm(
                 enumerate(loader), total=len(loader)
             ):
-                base_input = [t.to(DEVICE) for t in base_input]
-                ablation_input = [t.to(DEVICE) for t in ablation_input]
                 train_losses = self.run_train_step(
                     base_input,
                     ablation_input,

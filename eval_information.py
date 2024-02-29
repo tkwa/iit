@@ -107,8 +107,6 @@ if __name__ == "__main__":
     )
     model_pair.train(
         train_set,
-        train_set,
-        test_set,
         test_set,
         epochs=training_args["epochs"],
         use_wandb=use_wandb,
@@ -128,8 +126,8 @@ if __name__ == "__main__":
     correctness_stats_per_layer = evaluate_model_on_probes(
         ll_model=ll_model,
         task=task,
-        train_set=train_set,
-        test_set=test_set,
+        train_set=train_set.base_data,
+        test_set=test_set.base_data,
         probe_training_args=probe_training_args,
         use_wandb=use_wandb,
         save_probes=save_weights,
@@ -138,8 +136,8 @@ if __name__ == "__main__":
     leaky_stats_per_layer = evaluate_model_on_probes(
         ll_model=ll_model,
         task=leaky_task,
-        train_set=leaky_train_set,
-        test_set=leaky_test_set,
+        train_set=leaky_train_set.base_data,
+        test_set=leaky_test_set.base_data,
         probe_training_args=probe_training_args,
         use_wandb=use_wandb,
         save_probes=save_weights,
