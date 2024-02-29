@@ -62,9 +62,7 @@ class IITModelPair(BaseModelPair):
         ablation_input,
         loss_fn: Callable[[Tensor, Tensor], Tensor],
     ):
-        base_input = [t.to(DEVICE) for t in base_input]
-        ablation_input = [t.to(DEVICE) for t in ablation_input]
-        hl_node = self.sample_hl_name() # sample a high-level variable to ablate
+        hl_node = self.sample_hl_name()  # sample a high-level variable to ablate
         hl_output, ll_output = self.do_intervention(base_input, ablation_input, hl_node)
         loss = loss_fn(ll_output, hl_output)
         top1 = t.argmax(ll_output, dim=-1)
@@ -81,9 +79,6 @@ class IITModelPair(BaseModelPair):
         loss_fn: Callable[[Tensor, Tensor], Tensor],
         optimizer: t.optim.Optimizer,
     ):
-        base_input = [t.to(DEVICE) for t in base_input]  # TODO: refactor to remove this
-        ablation_input = [t.to(DEVICE) for t in ablation_input]
-
         optimizer.zero_grad()
         hl_node = self.sample_hl_name()  # sample a high-level variable to ablate
         loss = self.get_IIT_loss_over_batch(
