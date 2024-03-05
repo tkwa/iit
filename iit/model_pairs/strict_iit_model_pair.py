@@ -64,8 +64,9 @@ class StrictIITModelPair(IITBehaviorModelPair):
         out = self.ll_model.run_with_hooks(
             base_x, fwd_hooks=[(ll_node.name, self.make_ll_ablation_hook(ll_node))]
         )
+        # print(out.shape, base_y.shape)
         ll_loss = (
-            loss_fn(out, base_y.unsqueeze(-1).float().to(self.ll_model.cfg.device))
+            loss_fn(out.squeeze(), base_y.to(self.ll_model.cfg.device))
             * self.training_args["strict_weight"]
         )
         if not use_single_loss:

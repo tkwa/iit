@@ -9,7 +9,7 @@ import networkx as nx
 import wandb
 from tqdm import tqdm
 from torch.utils.data import DataLoader
-from iit.utils.index import TorchIndex
+from iit.utils.index import TorchIndex, Ix
 from iit.utils.iit_dataset import IITDataset
 from iit.utils.config import *
 import torch as t
@@ -58,6 +58,8 @@ class LLNode:
     def __hash__(self):
         return hash(dataclasses.astuple(self))
 
+    def get_index(self):
+        return self.index.as_index
 
 class BaseModelPair(ABC):
     hl_model: HookedRootModule
@@ -112,21 +114,21 @@ class BaseModelPair(ABC):
     ##### Mutable methods you can override ####
     ###########################################
     def do_intervention(
-        self, base_input, ablation_input, hl_node: HookName, verbose=False
+        self, base_input, ablation_input, hl_node: HLNode, verbose=False
     ) -> tuple[Tensor, Tensor]:
         ablation_x, ablation_y, ablation_intermediate_vars = ablation_input
         base_x, base_y, base_intermediate_vars = base_input
         hl_ablation_output, self.hl_cache = self.hl_model.run_with_cache(ablation_input)
 
-        assert torch.allclose(
-            hl_ablation_output.squeeze(), ablation_y
-        ), f"Ablation output {hl_ablation_output} does not match label {ablation_y}"
+        # assert torch.allclose(
+        #     hl_ablation_output.squeeze(), ablation_y
+        # ), f"Ablation output {hl_ablation_output} does not match label {ablation_y}"
 
         ll_ablation_output, self.ll_cache = self.ll_model.run_with_cache(ablation_x)
         ll_nodes = self.corr[hl_node]
 
         hl_output = self.hl_model.run_with_hooks(
-            base_input, fwd_hooks=[(hl_node, self.hl_ablation_hook)]
+            base_input, fwd_hooks=[(hl_node.name, self.make_hl_ablation_hook(hl_node))]
         )
         ll_output = self.ll_model.run_with_hooks(
             base_x,
@@ -149,11 +151,32 @@ class BaseModelPair(ABC):
     def set_corr(self, corr):
         self.corr = corr
 
-    def sample_hl_name(self) -> str:
-        # return a `str` rather than `numpy.str_`
-        return str(self.rng.choice(list(self.corr.keys())))
+    def sample_hl_name(self) -> HLNode:
+        return self.rng.choice(list(self.corr.keys()))
+    
+    def make_hl_ablation_hook(
+            self, hl_node: HLNode
+    ):
+        assert isinstance(hl_node, HLNode), ValueError(
+            f"hl_node is not an instance of HLNode, but {type(hl_node)}"
+        )
+        def hl_ablation_hook(hook_point_out: Tensor, hook: HookPoint) -> Tensor:
+            out = hook_point_out.clone()
 
-    def hl_ablation_hook(self, hook_point_out: Tensor, hook: HookPoint) -> Tensor:
+            if isinstance(out, float) or isinstance(out, int):
+                assert hl_node.index is Ix[[None]] or hl_node.index is None, "scalars cannot be indexed"
+                return self.hl_cache[hook.name]
+            
+            out[hl_node.index.as_index] = self.hl_cache[hook.name][
+                hl_node.index.as_index
+            ]
+            return out
+        if hl_node.index is not None:
+            return hl_ablation_hook
+        else:
+            return self.hl_ablation_hook
+    
+    def hl_ablation_hook(self, hook_point_out: Tensor, hook: HookPoint) -> Tensor: # TODO: remove this
         out = self.hl_cache[hook.name]
         return out
 

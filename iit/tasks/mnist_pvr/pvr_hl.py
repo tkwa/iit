@@ -5,9 +5,9 @@ from iit.utils.config import DEVICE
 from iit.model_pairs.base_model_pair import HLNode, LLNode
 from iit.utils.index import Ix
 from .utils import *
+from iit.tasks.hl_model import HLModel
 
-
-class MNIST_PVR_HL(HookedRootModule):
+class MNIST_PVR_HL(HookedRootModule, HLModel):
     """
     A high-level implementation of the algorithm used for MNIST_PVR
     """
@@ -22,6 +22,9 @@ class MNIST_PVR_HL(HookedRootModule):
             [class_map[i] for i in range(len(class_map))], dtype=t.long, device=device
         )
         self.setup()
+
+    def is_categorical(self):
+        return True
 
     def get_idx_to_intermediate(self, name: HookName):
         """

@@ -34,7 +34,7 @@ def get_dataset(task: str, dataset_config: dict) -> tuple[IITDataset, IITDataset
 
 def get_alignment(
     task: str, config: dict
-) -> tuple([HookedRootModule, HookedRootModule, dict]):
+) -> tuple[HookedRootModule, HookedRootModule, dict]:
     if "pvr" in task:
         default_config = {
             "mode": "q",

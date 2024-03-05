@@ -123,6 +123,10 @@ class IITBehaviorModelPair(IITModelPair):
         output = self.ll_model(base_x)
         if self.hl_model.is_categorical():
             top1 = t.argmax(output, dim=-1)
+            if output.shape == base_y.shape:
+                # To handle the case when labels are one-hot
+                # TODO: is there a better way?
+                base_y = t.argmax(base_y, dim=-1)
             accuracy = (top1 == base_y).float().mean()
         else:
             accuracy = ((output.squeeze() - base_y).abs() < atol).float().mean()

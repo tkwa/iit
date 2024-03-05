@@ -8,7 +8,7 @@ from transformer_lens.hook_points import HookedRootModule, HookPoint
 from iit.utils.config import DEVICE
 from iit.model_pairs.base_model_pair import HLNode, LLNode
 from iit.utils.index import Ix
-# from .utils import *
+from tasks.hl_model import HLModel
 
 # %%
 
@@ -75,7 +75,7 @@ class NameMoverHead(t.nn.Module):
         
 # %%
         
-class IOI_HL(HookedRootModule):
+class IOI_HL(HookedRootModule, HLModel):
     """
     Components:
     - Duplicate token heads: write the previous position of any duplicated token
@@ -112,7 +112,9 @@ class IOI_HL(HookedRootModule):
     #         return lambda intermediate_vars: intermediate_vars[:, 4]
     #     else:
     #         raise NotImplementedError(name)
-
+    def is_categorical(self):
+        return True
+    
     def forward(self, args, verbose=False):
         show = print if verbose else lambda *args, **kwargs: None
         input, label, _intermediate_data = args

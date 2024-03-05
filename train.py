@@ -7,8 +7,8 @@ training_args = {
     "early_stop": True,
 }
 dataset_config = {
-    "train_size": 60000,
-    "test_size": 10000,
+    "train_size": 600,
+    "test_size": 100,
     "batch_size": 256,
     "num_workers": 0,
 }
