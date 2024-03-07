@@ -39,7 +39,7 @@ hl_model = IOI_HL(d_vocab=ll_model.cfg.d_vocab_out,
 # %%
 
 
-class IOI_IITDataset(t.utils.data.Dataset):
+class IOIDataset(t.utils.data.Dataset):
     def __init__(self, *args, **kwargs):
         self.tl_dataset = IOIDatasetTL(*args, **kwargs)
 
@@ -50,7 +50,7 @@ class IOI_IITDataset(t.utils.data.Dataset):
         x = self.tl_dataset[idx]
         return (x['prompt'].to(DEVICE), t.tensor(()), t.tensor(()))
     
-ioi_dataset = IOI_IITDataset(
+ioi_dataset = IOIDataset(
     num_samples=15,
     tokenizer=ll_model.tokenizer,
 )
@@ -121,7 +121,7 @@ corr = {k: {LLNode(name=name, index=None) for name in v} for k, v in corr.items(
 
 
 # TODO split into train and test
-train_set, test_set = ioi_dataset, ioi_dataset
+train_set, test_set = IITDataset(ioi_dataset, ioi_dataset, seed=0), IITDataset(ioi_dataset, ioi_dataset, seed=1)
 
 model_pair = IOI_IITModelPair(ll_model=ll_model, hl_model=hl_model,
                           corr = corr,
@@ -138,7 +138,7 @@ def cross_entropy_last_loss_fn(output, target):
 
 model_pair.loss_fn = cross_entropy_last_loss_fn
 # %%
-model_pair.train(train_set, train_set, test_set, test_set, epochs=10, use_wandb=False)
+model_pair.train(train_set, test_set, epochs=10, use_wandb=False)
 
 print(f"done training")
 # %%
