@@ -49,7 +49,7 @@ class IITModelPair(BaseModelPair):
     def make_train_metrics():
         return MetricStoreCollection(
             [
-                MetricStore("iit_loss", MetricType.LOSS),
+                MetricStore("train/iit_loss", MetricType.LOSS),
             ]
         )
 
@@ -57,8 +57,8 @@ class IITModelPair(BaseModelPair):
     def make_test_metrics():
         return MetricStoreCollection(
             [
-                MetricStore("iit_loss", MetricType.LOSS),
-                MetricStore("accuracy", MetricType.ACCURACY),
+                MetricStore("val/iit_loss", MetricType.LOSS),
+                MetricStore("val/accuracy", MetricType.ACCURACY),
             ]
         )
 
@@ -74,8 +74,8 @@ class IITModelPair(BaseModelPair):
         top1 = t.argmax(ll_output, dim=-1)
         accuracy = (top1 == hl_output).float().mean()
         return {
-            "iit_loss": loss.item(),
-            "accuracy": accuracy.item(),
+            "val/iit_loss": loss.item(),
+            "val/accuracy": accuracy.item(),
         }
 
     def run_train_step(
@@ -92,4 +92,4 @@ class IITModelPair(BaseModelPair):
         )
         loss.backward()
         optimizer.step()
-        return {"iit_loss": loss.item()}
+        return {"train/iit_loss": loss.item()}

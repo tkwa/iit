@@ -12,8 +12,6 @@ from iit.tasks.hl_model import HLModel
 
 # %%
 
-DEVICE = 'cuda' # TODO fix
-
 IOI_NAMES = t.tensor([10, 20, 30]) # TODO
 
 class DuplicateHead(t.nn.Module):

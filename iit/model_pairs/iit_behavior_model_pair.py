@@ -51,7 +51,10 @@ class IITBehaviorModelPair(IITModelPair):
     def get_behaviour_loss_over_batch(self, base_input, loss_fn):
         base_x, base_y, _ = base_input
         output = self.ll_model(base_x)
-        behavior_loss = loss_fn(output.squeeze(), base_y)
+        try:
+            behavior_loss = loss_fn(output.squeeze(), base_y)
+        except:
+            behavior_loss = loss_fn(output, base_y) # for batch size 1
         return behavior_loss
 
     @staticmethod
@@ -109,7 +112,10 @@ class IITBehaviorModelPair(IITModelPair):
         hl_output, ll_output = self.do_intervention(base_input, ablation_input, hl_node)
         if self.hl_model.is_categorical():
             loss = loss_fn(ll_output, hl_output)
-            top1 = t.argmax(ll_output, dim=1)
+            if ll_output.shape == hl_output.shape:
+                # To handle the case when labels are one-hot
+                hl_output = t.argmax(hl_output, dim=-1)
+            top1 = t.argmax(ll_output, dim=-1)
             accuracy = (top1 == hl_output).float().mean()
             IIA = accuracy.item()
         else:
