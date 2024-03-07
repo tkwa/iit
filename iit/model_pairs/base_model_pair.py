@@ -25,7 +25,7 @@ HLCache = dict
 class HLNode:
     name: HookName
     num_classes: int
-    index: Optional[int]
+    index: Optional[TorchIndex] = None
 
     def __hash__(self) -> int:
         return hash(self.name)
@@ -42,7 +42,6 @@ class HLNode:
 
     def __repr__(self) -> str:
         return self.name
-
 
 @dataclass
 class LLNode:

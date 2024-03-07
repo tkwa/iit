@@ -3,6 +3,8 @@ import iit.model_pairs as mp
 from transformer_lens import HookedTransformer
 import torch as t
 
+LLParamNode = mp.LLNode
+
 def get_all_nodes(model: HookedTransformer) -> list[mp.LLNode]:
     nodes = []
     n_heads = model.cfg.n_heads
@@ -69,7 +71,19 @@ def _get_param_idx(name: str, param: t.nn.parameter.Parameter, node: mp.LLNode) 
     
     return param_idx
 
-def get_params_in_circuit(hl_ll_corr: dict[str, set[mp.LLNode]], ll_model: HookedTransformer) -> list[mp.LLNode]:
+def get_activation_idx(node: LLParamNode) -> index.TorchIndex:
+    param_type = node.name.split('.')[-1]
+    idx_tuple = node.index.as_index
+    if param_type in ['W_Q', 'W_K', 'W_V']:
+        return index.TorchIndex([slice(None), *idx_tuple])
+    elif param_type in ['b_Q', 'b_K', 'b_V']:
+        return index.TorchIndex([slice(None), *idx_tuple, slice(None)])
+    elif param_type == 'W_O':
+        return index.TorchIndex([idx_tuple[0], idx_tuple[2], idx_tuple[1], slice(None)])
+    else:
+        return index.Ix[[None]]
+
+def get_params_in_circuit(hl_ll_corr: dict[str, set[mp.LLNode]], ll_model: HookedTransformer) -> list[LLParamNode]:
     nodes_in_circuit = get_nodes_in_circuit(hl_ll_corr)
     params_in_circuit = []
     for name, param in ll_model.named_parameters():
@@ -78,5 +92,30 @@ def get_params_in_circuit(hl_ll_corr: dict[str, set[mp.LLNode]], ll_model: Hooke
             param_name = ".".join(name.split('.')[:-1])
             if node_name == param_name:
                 param_idx = _get_param_idx(name, param, node)
-                params_in_circuit.append(mp.LLNode(name, param_idx))
+                params_in_circuit.append(LLParamNode(name, param_idx))
     return params_in_circuit
+
+def get_all_params(ll_model: HookedTransformer) -> list[LLParamNode]:
+    params = []
+    for name, param in ll_model.named_parameters():
+        param_type = name.split('.')[-1]
+        if param_type in ['W_Q', 'W_K', 'W_V', 'W_O', 'b_Q', 'b_K', 'b_V']:
+            for head in range(ll_model.cfg.n_heads):
+                idx = index.Ix[:, :, head, :]
+                param_idx = _get_param_idx(name, param, LLParamNode(name, idx))
+                params.append(LLParamNode(name, param_idx))
+        else:
+            param_idx = index.Ix[[None]]
+            params.append(LLParamNode(name, param_idx))
+    return params
+
+def get_params_not_in_circuit(hl_ll_corr: dict[str, set[mp.LLNode]], ll_model: HookedTransformer, filter_out_embed: bool = True) -> list[LLParamNode]:
+    nodes_in_circuit = get_nodes_in_circuit(hl_ll_corr)
+    all_params = get_all_params(ll_model)
+    params_not_in_circuit = []
+    for param in all_params:
+        if filter_out_embed and 'embed' in param.name:
+            continue
+        if not any(nodes_intersect(param, c) for c in nodes_in_circuit):
+            params_not_in_circuit.append(param)
+    return params_not_in_circuit

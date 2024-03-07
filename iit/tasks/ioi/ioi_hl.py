@@ -8,7 +8,7 @@ from transformer_lens.hook_points import HookedRootModule, HookPoint
 from iit.utils.config import DEVICE
 from iit.model_pairs.base_model_pair import HLNode, LLNode
 from iit.utils.index import Ix
-from tasks.hl_model import HLModel
+from iit.tasks.hl_model import HLModel
 
 # %%
 

@@ -92,10 +92,8 @@ class IITBehaviorModelPair(IITModelPair):
             self.step_on_loss(total_loss, optimizer)
 
         return {
-            "train/iit_loss": iit_loss.item() if "iit_loss" in locals() else 0.0,
-            "train/behavior_loss": (
-                behavior_loss.item() if "behavior_loss" in locals() else 0.0
-            ),
+            "train/iit_loss": iit_loss.item(),
+            "train/behavior_loss": behavior_loss.item(),
         }
 
     def run_eval_step(
