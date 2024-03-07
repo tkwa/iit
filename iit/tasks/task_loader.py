@@ -5,7 +5,7 @@ from transformer_lens.hook_points import HookedRootModule
 from iit.utils.iit_dataset import IITDataset
 
 
-def get_dataset(task: str, dataset_config: dict) -> tuple([IITDataset, IITDataset]):
+def get_dataset(task: str, dataset_config: dict) -> tuple[IITDataset, IITDataset]:
     if "pvr" in task:
         default_dataset_args = {"pad_size": 7, "train_size": 60000, "test_size": 10000}
         default_dataset_args.update(dataset_config)
@@ -29,7 +29,7 @@ def get_dataset(task: str, dataset_config: dict) -> tuple([IITDataset, IITDatase
         )
     else:
         raise ValueError(f"Unknown task {task}")
-    return train_set, test_set
+    return IITDataset(train_set, train_set), IITDataset(test_set, test_set)
 
 
 def get_alignment(
