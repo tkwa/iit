@@ -12,6 +12,8 @@ from iit.utils.index import Ix
 
 # %%
 
+DEVICE = 'cuda' # TODO fix
+
 IOI_NAMES = t.tensor([10, 20, 30]) # TODO
 
 class DuplicateHead(t.nn.Module):
@@ -57,11 +59,11 @@ class NameMoverHead(t.nn.Module):
         increase logit of all names in the sentence, except those flagged by s_inhibition
         """
         batch, seq = tokens.shape
-        logits = t.zeros((batch, seq, self.d_vocab_out)) # batch seq d_vocab
+        logits = t.zeros((batch, seq, self.d_vocab_out)).to(DEVICE) # batch seq d_vocab
         # we want every name to increase its corresponding logit after it appears
         name_mask = tokens.eq(self.names[None, :, None]).any(dim=1)
-        print(name_mask)
-        batch_indices, seq_indices = t.meshgrid(t.arange(batch), t.arange(seq))
+        
+        batch_indices, seq_indices = t.meshgrid(t.arange(batch), t.arange(seq), indexing='ij')
         logits[batch_indices, seq_indices, tokens] = 10 * name_mask.float()
         # now decrease the logit of the names that are inhibited
         logits[batch_indices, seq_indices, s_inhibition] += -15 * s_inhibition.ne(-1).float()
@@ -82,16 +84,16 @@ class IOI_HL(HookedRootModule):
     - S-inhibition heads: Inhibit attention of Name Mover Heads to S1 and S2 tokens
     - Name mover heads: Copy all previous names in the sentence
     """
-    def __init__(self, device=DEVICE):
+    def __init__(self, d_vocab, names=IOI_NAMES):
         super().__init__()
-        self.duplicate_head = DuplicateHead().to(device)
-        self.hook_duplicate = HookPoint().to(device)
-        self.previous_head = PreviousHead().to(device)
-        self.hook_previous = HookPoint().to(device)
-        self.s_inhibition_head = SInhibitionHead().to(device)
-        self.hook_s_inhibition = HookPoint().to(device)
-        self.name_mover_head = NameMoverHead().to(device)
-        self.hook_name_mover = HookPoint().to(device)
+        self.duplicate_head = DuplicateHead()
+        self.hook_duplicate = HookPoint()
+        self.previous_head = PreviousHead()
+        self.hook_previous = HookPoint()
+        self.s_inhibition_head = SInhibitionHead()
+        self.hook_s_inhibition = HookPoint()
+        self.name_mover_head = NameMoverHead(d_vocab, names)
+        self.hook_name_mover = HookPoint()
         self.setup()
 
     # def get_idx_to_intermediate(self, name: HookName):

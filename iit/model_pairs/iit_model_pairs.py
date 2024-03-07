@@ -38,6 +38,10 @@ class IITModelPair(BaseModelPair):
     @property
     def loss_fn(self):
         return t.nn.CrossEntropyLoss()
+    
+    @loss_fn.setter
+    def loss_fn(self, value):
+        self._loss_fn = value
 
     @staticmethod
     def make_train_metrics():
