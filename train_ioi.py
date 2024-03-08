@@ -14,26 +14,35 @@ from iit.tasks.ioi.ioi_hl import IOI_HL
 from iit.model_pairs.base_model_pair import *
 from iit.utils.metric import *
 from typing import final
+from iit.tasks.ioi.ioi_config import NAMES
 
 DEVICE = t.device("cuda" if t.cuda.is_available() else "cpu")
 
 training_args = {
-    'batch_size': 32,
-    'lr': 0.001,
+    'batch_size': 128,
+    'lr': 0.01,
     'num_workers': 0,
     'iit_weight': 0.0,
     'behavior_weight': 1.0,
 }
 
 ll_cfg = transformer_lens.HookedTransformer.from_pretrained("gpt2").cfg
+ll_cfg.n_layers = 6
+ll_cfg.n_heads = 4
+ll_cfg.d_model = 64
+ll_cfg.d_head = 64 // ll_cfg.n_heads
+
 ll_cfg.init_weights = True
 ll_model = transformer_lens.HookedTransformer(ll_cfg).to(DEVICE)
 
 # TODO specify names, nouns, samples
 ioi_dataset_tl = IOIDatasetTL(
-    num_samples=15,
+    num_samples=1000,
     tokenizer=ll_model.tokenizer,
+    names=NAMES,
 )
+
+
 
 ioi_names = t.tensor(list(set([ioi_dataset_tl[i]['IO'].item() for i in range(len(ioi_dataset_tl))]))).to(DEVICE)
 hl_model = IOI_HL(d_vocab=ll_model.cfg.d_vocab_out,
@@ -107,18 +116,19 @@ class IOIDataset(t.utils.data.Dataset):
         return (x['prompt'][:-1].to(DEVICE), (y).to(DEVICE), (x['IO']).to(DEVICE))
     
 ioi_dataset = IOIDataset(
-    num_samples=15,
+    num_samples=1500,
     tokenizer=ll_model.tokenizer,
+    names=NAMES,
 )
 
 HookName = str
 HLCache = dict
 
 corr = {
-    'hook_duplicate': {'blocks.2.attn.hook_result'},
-    'hook_previous': {'blocks.4.attn.hook_result'},
-    'hook_s_inhibition': {'blocks.6.attn.hook_result'},
-    'hook_name_mover': {'blocks.8.attn.hook_result'},
+    'hook_duplicate': {'blocks.0.attn.hook_result'},
+    'hook_previous': {'blocks.1.attn.hook_result'},
+    'hook_s_inhibition': {'blocks.2.attn.hook_result'},
+    'hook_name_mover': {'blocks.3.attn.hook_result'},
 }
 corr = {HLNode(k, -1): {LLNode(name=name, index=None) for name in v} for k, v in corr.items()}
 
