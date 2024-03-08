@@ -25,7 +25,9 @@ training_args = {
     'behavior_weight': 1.0,
 }
 
-ll_model = transformer_lens.HookedTransformer.from_pretrained("gpt2").to(DEVICE)
+ll_cfg = transformer_lens.HookedTransformer.from_pretrained("gpt2").cfg
+ll_cfg.init_weights = True
+ll_model = transformer_lens.HookedTransformer(ll_cfg).to(DEVICE)
 
 # TODO specify names, nouns, samples
 ioi_dataset_tl = IOIDatasetTL(
@@ -36,6 +38,57 @@ ioi_dataset_tl = IOIDatasetTL(
 ioi_names = t.tensor(list(set([ioi_dataset_tl[i]['IO'].item() for i in range(len(ioi_dataset_tl))]))).to(DEVICE)
 hl_model = IOI_HL(d_vocab=ll_model.cfg.d_vocab_out,
                   names=ioi_names).to(DEVICE)
+
+class IOI_ModelPair(mp.IITBehaviorModelPair):
+    def get_IIT_loss_over_batch(
+        self,
+        base_input,
+        ablation_input,
+        hl_node: HookName,
+        loss_fn: Callable[[Tensor, Tensor], Tensor],
+    ):
+        hl_output, ll_output = self.do_intervention(base_input, ablation_input, hl_node)
+        hl_output = t.nn.functional.softmax(hl_output, dim=-1)
+
+        loss = loss_fn(ll_output[:, -1, :], hl_output[:, -1, :])
+        return loss
+    
+    def run_eval_step(
+        self,
+        base_input,
+        ablation_input,
+        loss_fn: Callable[[Tensor, Tensor], Tensor],
+    ):
+        atol = self.training_args["atol"]
+
+        # compute IIT loss and accuracy on last token position only
+        hl_node = self.sample_hl_name()
+        hl_output, ll_output = self.do_intervention(base_input, ablation_input, hl_node)
+        # CrossEntropyLoss needs target probs, not logits
+        hl_output = t.nn.functional.softmax(hl_output, dim=-1)
+        assert self.hl_model.is_categorical()
+        loss = loss_fn(ll_output[:, -1, :], hl_output[:, -1, :])
+        if ll_output.shape == hl_output.shape:
+            # To handle the case when labels are one-hot
+            hl_output = t.argmax(hl_output, dim=-1)
+        top1 = t.argmax(ll_output, dim=-1)
+        accuracy = (top1[:, -1] == hl_output[:, -1]).float().mean()
+        IIA = accuracy.item()
+
+        # compute behavioral accuracy
+        base_x, base_y, _ = base_input
+        output = self.ll_model(base_x)
+        top1 = t.argmax(output, dim=-1) # batch n_ctx
+        if output.shape == base_y.shape:
+            # To handle the case when labels are one-hot
+            # TODO: is there a better way?
+            base_y = t.argmax(base_y, dim=-1) # batch n_ctx
+        accuracy = (top1 == base_y).float().mean()
+        return {
+            "val/iit_loss": loss.item(),
+            "val/IIA": IIA,
+            "val/accuracy": accuracy.item(),
+        }
 
 
 
@@ -49,10 +102,9 @@ class IOIDataset(t.utils.data.Dataset):
     def __getitem__(self, idx):
         x = self.tl_dataset[idx]
         prompt = x['prompt']
-        eos_token = self.tl_dataset.tokenizer.eos_token_id
-        y = list(prompt[1:]) + [eos_token]
+        y = list(prompt[1:])
         y = t.nn.functional.one_hot(t.tensor(y), num_classes=self.tl_dataset.tokenizer.vocab_size).float()
-        return (x['prompt'].to(DEVICE), (y).to(DEVICE), (x['IO']).to(DEVICE))
+        return (x['prompt'][:-1].to(DEVICE), (y).to(DEVICE), (x['IO']).to(DEVICE))
     
 ioi_dataset = IOIDataset(
     num_samples=15,
@@ -74,7 +126,7 @@ corr = {HLNode(k, -1): {LLNode(name=name, index=None) for name in v} for k, v in
 # TODO split into train and test
 train_set, test_set = IITDataset(ioi_dataset, ioi_dataset, seed=0), IITDataset(ioi_dataset, ioi_dataset, seed=1)
 
-model_pair = mp.IITBehaviorModelPair(ll_model=ll_model, hl_model=hl_model,
+model_pair = IOI_ModelPair(ll_model=ll_model, hl_model=hl_model,
                           corr = corr,
                           training_args=training_args)
 
@@ -82,3 +134,4 @@ model_pair.train(train_set, test_set, epochs=10, use_wandb=False)
 
 print(f"done training")
 print([ll_model.tokenizer.decode(ioi_dataset_tl[i]['prompt']) for i in range(5)])
+# %%

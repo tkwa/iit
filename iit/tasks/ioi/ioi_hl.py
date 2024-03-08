@@ -12,7 +12,6 @@ from iit.tasks.hl_model import HLModel
 
 # %%
 
-IOI_NAMES = t.tensor([10, 20, 30]) # TODO
 
 class DuplicateHead(t.nn.Module):
     def forward(self, tokens:t.Tensor):
@@ -47,7 +46,7 @@ class SInhibitionHead(t.nn.Module):
         return ret
     
 class NameMoverHead(t.nn.Module):
-    def __init__(self, d_vocab:int=40, names=IOI_NAMES):
+    def __init__(self, names, d_vocab:int=40, ):
         super().__init__()
         self.d_vocab_out = d_vocab
         self.names = names
@@ -57,9 +56,9 @@ class NameMoverHead(t.nn.Module):
         increase logit of all names in the sentence, except those flagged by s_inhibition
         """
         batch, seq = tokens.shape
-        logits = t.zeros((batch, seq, self.d_vocab_out)).to(DEVICE) # batch seq d_vocab
+        logits = t.zeros((batch, seq, self.d_vocab_out), device=tokens.device) # batch seq d_vocab
         # we want every name to increase its corresponding logit after it appears
-        name_mask = tokens.eq(self.names[None, :, None]).any(dim=1)
+        name_mask = t.isin(tokens, self.names)
         
         batch_indices, seq_indices = t.meshgrid(t.arange(batch), t.arange(seq), indexing='ij')
         logits[batch_indices, seq_indices, tokens] = 10 * name_mask.float()
@@ -82,7 +81,7 @@ class IOI_HL(HookedRootModule, HLModel):
     - S-inhibition heads: Inhibit attention of Name Mover Heads to S1 and S2 tokens
     - Name mover heads: Copy all previous names in the sentence
     """
-    def __init__(self, d_vocab, names=IOI_NAMES):
+    def __init__(self, d_vocab, names):
         super().__init__()
         self.duplicate_head = DuplicateHead()
         self.hook_duplicate = HookPoint()
@@ -90,8 +89,10 @@ class IOI_HL(HookedRootModule, HLModel):
         self.hook_previous = HookPoint()
         self.s_inhibition_head = SInhibitionHead()
         self.hook_s_inhibition = HookPoint()
-        self.name_mover_head = NameMoverHead(d_vocab, names)
+        self.name_mover_head = NameMoverHead(names, d_vocab)
         self.hook_name_mover = HookPoint()
+
+        self.d_vocab = d_vocab
         self.setup()
 
     # def get_idx_to_intermediate(self, name: HookName):
@@ -124,15 +125,19 @@ class IOI_HL(HookedRootModule, HLModel):
         # duplicate, previous, induction, s_inhibition, name_mover = [intermediate_data[:, i] for i in range(5)]
         # print(f"intermediate_data is a {type(intermediate_data)}; duplicate is a {type(duplicate)}")
         duplicate = self.duplicate_head(input)
+        assert duplicate.shape == input.shape
         duplicate = self.hook_duplicate(duplicate)
         show(f"duplicate: {duplicate}")
         previous = self.previous_head(input)
+        assert previous.shape == input.shape
         previous = self.hook_previous(previous)
         show(f"previous: {previous}")
         s_inhibition = self.s_inhibition_head(input, duplicate)
+        assert s_inhibition.shape == input.shape
         s_inhibition = self.hook_s_inhibition(s_inhibition)
         show(f"s_inhibition: {s_inhibition}")
         out = self.name_mover_head(input, s_inhibition)
+        assert out.shape == input.shape + (self.d_vocab,)
         out = self.hook_name_mover(out)
         if not batched:
             out = out[0]

@@ -2,6 +2,8 @@ import pytest
 import torch as t
 from .ioi_hl import *
 
+IOI_TEST_NAMES = t.tensor([10, 20, 30])
+
 def nonzero_values(a: t.Tensor):
     return t.cat((a.nonzero(), a[a != 0][:, None]), dim=-1)
 
@@ -21,7 +23,7 @@ def test_s_inhibition_head():
 
 
 def test_name_mover_head():
-    a = NameMoverHead(d_vocab=21)(t.tensor([[1, 2, 10, 20]]), t.tensor([[-1, 20, 10, -1]]))
+    a = NameMoverHead(IOI_TEST_NAMES, d_vocab=21)(t.tensor([[1, 2, 10, 20]]), t.tensor([[-1, 20, 10, -1]]))
 
     assert nonzero_values(a[0]).equal(t.tensor(
         [[  1.,  20., -15.],
@@ -32,7 +34,7 @@ def test_name_mover_head():
 
 
 def test_ioi_hl():
-    a = IOI_HL(device='cuda')((t.tensor([[3, 10, 4, 10, 5, 9, 2, 6, 5]]), None, None))
+    a = IOI_HL(d_vocab=21, names=IOI_TEST_NAMES)((t.tensor([[3, 10, 4, 10, 5, 9, 2, 6, 5]]), None, None))
     assert nonzero_values(a[0]).equal(t.tensor([[  1.,  10.,  10.],
         [  2.,  10.,  10.],
         [  3.,  10.,   5.],
