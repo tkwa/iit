@@ -12,6 +12,7 @@ import json
 
 DEVICE = t.device("cuda" if t.cuda.is_available() else "cpu")
 num_samples = 9000
+epochs = 100
 training_args = {
     "batch_size": 128,
     "lr": 0.01,
@@ -21,6 +22,8 @@ training_args = {
     "strict_weight": 0.0,
     "next_token": False,
 }
+t.manual_seed(0)
+np.random.seed(0)
 
 ll_cfg = transformer_lens.HookedTransformer.from_pretrained("gpt2").cfg
 ll_cfg.n_layers = 6
@@ -78,7 +81,7 @@ detokenised = [
 ]
 print(sentence, detokenised)
 
-model_pair.train(train_set, test_set, epochs=1000, use_wandb=False)
+model_pair.train(train_set, test_set, epochs=epochs, use_wandb=False)
 
 print(f"done training")
 # save model
@@ -86,6 +89,7 @@ save_dir = f"models/ioi/{model_pair.__class__.__name__}"
 model_dir = f"{int(100*training_args['behavior_weight'])}_{int(100*training_args['iit_weight'])}_{int(100*training_args['strict_weight'])}"
 os.makedirs(f"{save_dir}/{model_dir}", exist_ok=True)
 torch.save(ll_model.state_dict(), f"{save_dir}/{model_dir}/ll_model.pth")
+
 # save training args
 with open(f"{save_dir}/{model_dir}/training_args.json", "w") as f:
     json.dump(training_args, f)
@@ -94,3 +98,14 @@ with open(f"{save_dir}/{model_dir}/training_args.json", "w") as f:
 cfg = ll_model.cfg.to_dict()
 with open(f"{save_dir}/{model_dir}/ll_model_cfg.json", "w") as f:
     f.write(str(cfg))
+
+# log metrics
+with open(f"{save_dir}/{model_dir}/metrics.log", "w") as f:
+    f.write(f"Epochs: {epochs}\n")
+    f.write(f"Early stop: {model_pair._check_early_stop_condition(model_pair.test_metrics)}\n")
+    f.write("\n\n--------------------------------\n\n")
+    f.write("Training metrics:\n")
+    f.write(str(model_pair.training_metrics))
+    f.write("\n\n--------------------------------\n\n")
+    f.write("Test metrics:\n")
+    f.write(str(model_pair.test_metrics))

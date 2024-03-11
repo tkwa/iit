@@ -79,3 +79,6 @@ class MetricStoreCollection:
         new_metric = MetricStore(name, metric_type)
         self.metrics.append(new_metric)
         return new_metric
+
+    def __str__(self) -> str:
+        return "\n".join([str(metric) for metric in self.metrics])
