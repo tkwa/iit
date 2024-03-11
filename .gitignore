@@ -10,3 +10,5 @@ weights/
 *.npy
 .DS_Store
 *.log
+*.pth
+*.json

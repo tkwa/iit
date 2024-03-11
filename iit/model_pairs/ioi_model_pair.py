@@ -8,9 +8,11 @@ from iit.model_pairs.iit_behavior_model_pair import IITBehaviorModelPair
 
 
 class IOI_ModelPair(IITBehaviorModelPair):
-    def __init__(self, hl_model, ll_model, corr, next_token=False, training_args={}):
+    def __init__(self, hl_model, ll_model, corr, training_args={}):
         super().__init__(hl_model, ll_model, corr, training_args)
-        self.next_token = next_token
+        default_training_args = {"next_token": False}
+        default_training_args.update(training_args)
+        self.next_token = default_training_args["next_token"]
 
     @property
     def loss_fn(self):
