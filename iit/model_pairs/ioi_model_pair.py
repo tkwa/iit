@@ -6,18 +6,30 @@ import torch as t
 from iit.model_pairs.base_model_pair import HLNode
 from iit.model_pairs.iit_behavior_model_pair import IITBehaviorModelPair
 
+
 class IOI_ModelPair(IITBehaviorModelPair):
+    def __init__(self, hl_model, ll_model, corr, next_token=False, training_args={}):
+        super().__init__(hl_model, ll_model, corr, training_args)
+        self.next_token = next_token
+
     @property
     def loss_fn(self):
+        if hasattr(self, "__loss_fn"):
+            return self.__loss_fn
+
         def per_token_weighted_cross_entropy(output, target):
-            # output: batch n_ctx vocab
-            # target: batch n_ctx vocab
-            # weight: n_ctx
-            weight = t.ones(target.shape[1]).to(DEVICE)
-            weight[-1] = 10
-            return t.nn.functional.cross_entropy(output, target, weight=weight)
-        return per_token_weighted_cross_entropy
-    
+            if len(output.shape) == 2:
+                return t.nn.functional.cross_entropy(output, target)
+            if self.next_token:
+                weight = t.ones(output.shape[1], device=DEVICE)
+                weight[-1] = 10
+                return t.nn.functional.cross_entropy(output, target, weight=weight)
+            else:
+                return t.nn.functional.cross_entropy(output[:, -1, :], target[:, -1, :])
+
+        self.__loss_fn = per_token_weighted_cross_entropy
+        return self.__loss_fn
+
     @staticmethod
     def make_test_metrics():
         return MetricStoreCollection(
@@ -41,15 +53,13 @@ class IOI_ModelPair(IITBehaviorModelPair):
 
         loss = loss_fn(ll_output[:, -1, :], hl_output[:, -1, :])
         return loss
-    
+
     def run_eval_step(
         self,
         base_input,
         ablation_input,
         loss_fn: Callable[[Tensor, Tensor], Tensor],
     ):
-        atol = self.training_args["atol"]
-
         # compute IIT loss and accuracy on last token position only
         hl_node = self.sample_hl_name()
         hl_output, ll_output = self.do_intervention(base_input, ablation_input, hl_node)
@@ -67,15 +77,15 @@ class IOI_ModelPair(IITBehaviorModelPair):
         # compute behavioral accuracy
         base_x, base_y, _ = base_input
         output = self.ll_model(base_x)
-        top1 = t.argmax(output, dim=-1) # batch n_ctx
+        top1 = t.argmax(output, dim=-1)  # batch n_ctx
         if output.shape == base_y.shape:
             # To handle the case when labels are one-hot
             # TODO: is there a better way?
-            base_y = t.argmax(base_y, dim=-1) # batch n_ctx
+            base_y = t.argmax(base_y, dim=-1)  # batch n_ctx
         per_token_accuracy = (top1 == base_y).float().mean(dim=0).cpu().numpy()
         return {
             "val/iit_loss": loss.item(),
             "val/IIA": IIA,
-            "val/accuracy": per_token_accuracy.mean().item(),
-            "val/per_token_accuracy": per_token_accuracy
+            "val/accuracy": per_token_accuracy.mean().item() if self.next_token else per_token_accuracy[-1],
+            "val/per_token_accuracy": per_token_accuracy,
         }
