@@ -64,3 +64,13 @@ class IITDataset(Dataset):
             num_workers=num_workers,
             collate_fn=lambda x: self.collate_fn(x, self.device),
         )
+
+def train_test_split(dataset, test_size=0.2, random_state=None):
+    if random_state is not None:
+        rng = np.random.default_rng(random_state)
+    n = len(dataset)
+    indices = rng.permutation(n)
+    split = int(n * test_size)
+    train_indices = indices[split:]
+    test_indices = indices[:split]
+    return [dataset[i] for i in train_indices], [dataset[i] for i in test_indices]

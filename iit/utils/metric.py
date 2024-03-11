@@ -35,6 +35,19 @@ class MetricStore:
     def __len__(self):
         return len(self._store)
 
+class PerTokenMetricStore(MetricStore):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def get_value(self):
+        if len(self._store) == 0:
+            raise ValueError("No values in metric store!")
+        return np.mean(self._store, axis=0)
+    
+    def __str__(self) -> str:
+        np.set_printoptions(precision=2)
+        return f"{self._name}: {self.get_value()}"
+
 
 class MetricStoreCollection:
     def __init__(self, list_of_metric_stores: list[MetricStore]):

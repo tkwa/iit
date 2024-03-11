@@ -208,6 +208,7 @@ class IOIDataset(Dataset):
         num_samples: int = 1000,
         symmetric: bool = False,
         prepend_bos: bool = True,
+        seed: int = 42,
     ):
         self.tokenizer = tokenizer
         self.prepend_bos = prepend_bos
@@ -219,6 +220,7 @@ class IOIDataset(Dataset):
         self.nouns = nouns if nouns is not None else self.get_default_nouns()
 
         self.samples = []
+        random.seed(seed)
         for _ in range(num_samples // 2 if symmetric else num_samples):
             # If symmetric, get_sample will return two samples
             self.samples.extend(self.get_sample(symmetric=symmetric))
@@ -239,7 +241,6 @@ class IOIDataset(Dataset):
         }
 
     def get_sample(self, symmetric=False) -> List[Dict[str, str]]:
-        # random.seed(42)
         template: str = random.choice(self.templates)
         for noun_type, noun_list in self.nouns.items():
             template = template.replace(f"[{noun_type}]", random.choice(noun_list))
@@ -354,3 +355,16 @@ def ioi_eval(
         "Logit Difference": total_logit_diff / len(dataset),
         "Accuracy": total_correct / len(dataset),
     }
+
+from iit.utils.config import DEVICE
+class IOIDatasetWrapper(IOIDataset):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+    
+    def __getitem__(self, idx):
+        x = super().__getitem__(idx)
+        prompt = x['prompt']
+        y = list(prompt[1:])
+        y = torch.nn.functional.one_hot(torch.tensor(y), num_classes=self.tokenizer.vocab_size).float()
+        return (x['prompt'][:-1].to(DEVICE), (y).to(DEVICE), (x['IO']).to(DEVICE))
+    

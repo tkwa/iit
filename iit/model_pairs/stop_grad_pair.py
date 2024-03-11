@@ -30,4 +30,6 @@ class StopGradModelPair(IITBehaviorModelPair):
             for name, param in self.ll_model.named_parameters():
                 if ll_node.name == name:
                     hook = self.make_detached_hook(ll_node)
-                    param.register_hook(hook)
+                    param.register_hook(hook) # TODO: change this back to a single run with hook and register this backward hook to 
+                    # TODO: test another part of the model and see if the gradient changes after registering the hook
+                    raise NotImplementedError("This is not implemented yet")
