@@ -25,7 +25,7 @@ class IITModelPair(BaseModelPair):
         self.corr: dict[HLNode, set[LLNode]] = corr
         print(self.hl_model.hook_dict)
         print(self.corr.keys())
-        assert all([k in self.hl_model.hook_dict for k in self.corr.keys()])
+        assert all([str(k) in self.hl_model.hook_dict for k in self.corr.keys()])
         self.rng = np.random.default_rng(seed)
         default_training_args = {
             "batch_size": 256,
