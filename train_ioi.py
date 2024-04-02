@@ -15,7 +15,7 @@ num_samples = 9000
 epochs = 100
 training_args = {
     "batch_size": 128,
-    "lr": 0.01,
+    "lr": 1e-4,
     "num_workers": 0,
     "iit_weight": 0.0,
     "behavior_weight": 1.0,

@@ -7,7 +7,7 @@ class IITBehaviorModelPair(IITModelPair):
     def __init__(self, hl_model, ll_model, corr, training_args={}):
         default_training_args = {
             "lr": 0.001,
-            "atol": 1e-2,
+            "atol": 5e-2,
             "early_stop": True,
             "use_single_loss": False,
             "iit_weight": 1.0,

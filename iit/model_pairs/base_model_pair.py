@@ -303,7 +303,7 @@ class BaseModelPair(ABC):
         for metric in test_metrics:
             if metric.type == MetricType.ACCURACY:
                 got_accuracy_metric = True
-                if metric.get_value() < 99:
+                if metric.get_value() < 100:
                     return False
         if not got_accuracy_metric:
             raise ValueError("No accuracy metric found in test_metrics!")
