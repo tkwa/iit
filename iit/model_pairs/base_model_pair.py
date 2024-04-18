@@ -313,6 +313,8 @@ class BaseModelPair(ABC):
     @staticmethod
     def _print_and_log_metrics(epoch, metrics, use_wandb=False):
         print(f"\nEpoch {epoch}:", end=" ")
+        if use_wandb:
+            wandb.log({"epoch": epoch})
         for metric in metrics:
             print(metric, end=", ")
             if use_wandb:

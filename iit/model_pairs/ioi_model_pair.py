@@ -4,7 +4,7 @@ from typing import Callable
 from torch import Tensor
 import torch as t
 from iit.model_pairs.base_model_pair import HLNode
-from iit.model_pairs.iit_behavior_model_pair import IITBehaviorModelPair
+from iit.model_pairs import IITBehaviorModelPair, StopGradModelPair
 
 
 class IOI_ModelPair(IITBehaviorModelPair):

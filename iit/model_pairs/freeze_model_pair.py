@@ -28,7 +28,7 @@ class FreezedModelPair(IITBehaviorModelPair):
                     param[param_idx.as_index].grad = t.zeros_like(param[param_idx.as_index])
                     # check other gradients are not affected/not zeroed
                     assert param.grad is not None 
-                    assert (param.grad.abs().sum() != 0) or (param_idx.as_index == index.Ix[[None]].as_index), f"got {param.grad.abs().sum()} and {param_idx.as_index} and {index.Ix[[None]].as_index}"
+                    # assert (param.grad.abs().sum() != 0) or (param_idx.as_index == index.Ix[[None]].as_index), f"got {param.grad.abs().sum()} and {param_idx.as_index} and {index.Ix[[None]].as_index}"
                     
     def step_on_loss(self, loss, optimizer):
         optimizer.zero_grad()

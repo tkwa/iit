@@ -17,10 +17,10 @@ training_args = {
     "batch_size": 128,
     "lr": 1e-4,
     "num_workers": 0,
-    "iit_weight": 0.0,
+    "iit_weight": 1.0,
     "behavior_weight": 1.0,
     "strict_weight": 0.0,
-    "next_token": False,
+    "next_token": True,
 }
 t.manual_seed(0)
 np.random.seed(0)
@@ -58,8 +58,8 @@ HLCache = dict
 corr = {
     "hook_duplicate": {"blocks.0.attn.hook_result"},
     "hook_previous": {"blocks.1.attn.hook_result"},
-    "hook_s_inhibition": {"blocks.2.attn.hook_result"},
-    "hook_name_mover": {"blocks.3.attn.hook_result"},
+    "hook_s_inhibition": {"blocks.2.attn.hook_result", "blocks.3.attn.hook_result"},
+    "hook_name_mover": {"blocks.4.attn.hook_result", "blocks.5.attn.hook_result"},
 }
 corr = {
     HLNode(k, -1): {LLNode(name=name, index=None) for name in v}

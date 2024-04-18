@@ -44,6 +44,28 @@ def get_nodes_not_in_circuit(
             nodes_not_in_circuit.append(node)
     return nodes_not_in_circuit
 
+def get_post_nodes_not_in_circuit(
+    ll_model: HookedTransformer, hl_ll_corr
+) -> list[mp.LLNode]:
+    print("WARNING: This doesn't work when switching individual heads on/off.")
+    nodes_not_in_circuit = get_nodes_not_in_circuit(ll_model, hl_ll_corr)
+    post_nodes_not_in_circuit = []
+    for node in nodes_not_in_circuit:
+        layer = int(node.name.split('.')[1])
+        if 'attn' in node.name:
+            post_hook_name = f"blocks.{layer}.hook_attn_out"
+        else:
+            post_hook_name = f"blocks.{layer}.hook_mlp_out"
+        append_node = True
+        for pn in post_nodes_not_in_circuit:
+            if pn.name == post_hook_name:
+                append_node = False
+                break
+        if append_node:
+            post_node = mp.LLNode(post_hook_name, index.Ix[[None]])
+            post_nodes_not_in_circuit.append(post_node)
+    return post_nodes_not_in_circuit   
+
 def _get_param_idx(name: str, param: t.nn.parameter.Parameter, node: mp.LLNode) -> index.TorchIndex:
     param_type = name.split('.')[-1]
     node_idx = node.index
