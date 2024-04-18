@@ -131,6 +131,7 @@ class StopGradModelPair(FreezedModelPair):
             scale=training_args["scale"],
             use_forward_hooks=training_args["use_ln_hooks"],
         )
+        self.wandb_method = "stop grads"
 
         # TODO: test another part of the model and see if the gradient changes after registering the hook
 

@@ -21,6 +21,8 @@ training_args = {
     "behavior_weight": 1.0,
     "strict_weight": 0.0,
     "next_token": True,
+    "lr_scheduler": None,
+    "grad_clip_norm": 1.0,
 }
 t.manual_seed(0)
 np.random.seed(0)

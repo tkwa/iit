@@ -206,6 +206,34 @@ class BaseModelPair(ABC):
         loss = loss_fn(ll_output, hl_output)
         return loss
 
+    def clip_grad_fn(self):
+        if self.training_args["clip_grad_norm"]:
+            t.nn.utils.clip_grad_norm_(
+                self.ll_model.parameters(), self.training_args["clip_grad_norm"]
+            )
+    
+    def step_scheduler(self, lr_scheduler, test_metrics):
+        if isinstance(lr_scheduler, t.optim.lr_scheduler.ReduceLROnPlateau):
+            val_metric = self.training_args.get("scheduler_val_metric", "val/accuracy")
+            try:
+                accuracy_metric = test_metrics.to_dict()[val_metric]
+                lr_scheduler.step(accuracy_metric)
+                return
+            except KeyError:
+                raise ValueError(
+                    f"val_metric {val_metric} not found in test_metrics {test_metrics}"
+                )
+            except Exception as e:
+                raise ValueError(
+                    f"WARNING: Could not step lr_scheduler {lr_scheduler} with exception {e}"
+                )
+        try:
+            lr_scheduler.step()
+        except Exception as e:
+            print(
+                    f"WARNING: Could not step lr_scheduler {lr_scheduler} with exception {e}"
+                )
+
     def train(
         self,
         train_set,
@@ -233,6 +261,12 @@ class BaseModelPair(ABC):
 
         optimizer = t.optim.Adam(self.ll_model.parameters(), lr=training_args["lr"])
         loss_fn = self.loss_fn
+        scheduler_cls = training_args.get("lr_scheduler", None)
+        if scheduler_cls == t.optim.lr_scheduler.ReduceLROnPlateau:
+            mode = training_args.get("scheduler_mode", "max")
+            lr_scheduler = scheduler_cls(optimizer, mode=mode, factor=0.1, patience=10)
+        elif scheduler_cls:
+            lr_scheduler = scheduler_cls(optimizer)
 
         if use_wandb and not wandb.run:
             wandb.init(project="iit", entity=WANDB_ENTITY)
@@ -244,6 +278,8 @@ class BaseModelPair(ABC):
         for epoch in tqdm(range(epochs)):
             train_metrics = self._run_train_epoch(train_loader, loss_fn, optimizer)
             test_metrics = self._run_eval_epoch(test_loader, loss_fn)
+            if scheduler_cls:
+                self.step_scheduler(lr_scheduler, test_metrics)
 
             self._print_and_log_metrics(
                 epoch, train_metrics.metrics + test_metrics.metrics, use_wandb

@@ -82,3 +82,6 @@ class MetricStoreCollection:
 
     def __str__(self) -> str:
         return "\n".join([str(metric) for metric in self.metrics])
+    
+    def to_dict(self):
+        return {metric.get_name(): metric.get_value() for metric in self.metrics}

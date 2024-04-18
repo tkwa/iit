@@ -14,11 +14,11 @@ class FreezedModelPair(IITBehaviorModelPair):
             "use_single_loss": False,
             "iit_weight": 1.0,
             "behavior_weight": 1.0,
-            "detach_unwanted_grads": True,
         }
         training_args = {**default_training_args, **training_args}
         super().__init__(hl_model, ll_model, corr=corr, training_args=training_args)
         self.params_not_in_circuit = node_picker.get_params_not_in_circuit(corr, ll_model)
+        self.wandb_method = "freeze_unwanted"
 
     def zero_grad_for_not_in_circuit(self):
         for ll_node in self.params_not_in_circuit:
@@ -34,4 +34,5 @@ class FreezedModelPair(IITBehaviorModelPair):
         optimizer.zero_grad()
         loss.backward()
         self.zero_grad_for_not_in_circuit() # else, no need as we do it via hooks
+        self.clip_grad_fn()
         optimizer.step()

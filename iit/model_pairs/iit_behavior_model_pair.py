@@ -57,10 +57,10 @@ class IITBehaviorModelPair(IITModelPair):
             behavior_loss = loss_fn(output, base_y) # for batch size 1
         return behavior_loss
 
-    @staticmethod
-    def step_on_loss(loss, optimizer):
+    def step_on_loss(self, loss, optimizer):
         optimizer.zero_grad()
         loss.backward()
+        self.clip_grad_fn()
         optimizer.step()
 
     def run_train_step(
