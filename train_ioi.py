@@ -14,7 +14,7 @@ DEVICE = t.device("cuda" if t.cuda.is_available() else "cpu")
 num_samples = 9000
 epochs = 100
 training_args = {
-    "batch_size": 128,
+    "batch_size": 256,
     "lr": 1e-4,
     "num_workers": 0,
     "iit_weight": 1.0,
@@ -57,14 +57,14 @@ ioi_dataset = IOIDatasetWrapper(
 HookName = str
 HLCache = dict
 all_layers = [f"blocks.{i}.attn.hook_result" for i in range(ll_cfg.n_layers)]
-all_layers += [f"blocks.{i}.mlp.hook_post" for i in range(ll_cfg.n_layers)]
+all_mlps = [f"blocks.{i}.mlp.hook_post" for i in range(ll_cfg.n_layers)]
 corr = {
     # "hook_duplicate": {all_layers[0]},
     # # "hook_previous": {"blocks.1.attn.hook_result"},
     # "hook_s_inhibition": {all_layers[2], all_layers[3]},
     # "hook_name_mover": {all_layers[4], all_layers[5]},
 
-    "all_nodes_hook": {*all_layers},
+    "all_nodes_hook": {*all_layers, *all_mlps},
 }
 corr = {
     HLNode(k, -1): {LLNode(name=name, index=None) for name in v}

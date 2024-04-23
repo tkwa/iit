@@ -5,6 +5,7 @@ import numpy as np
 class MetricType(Enum):
     ACCURACY = 1
     LOSS = 2
+    LOG = 3
 
 
 class MetricStore:
@@ -38,8 +39,8 @@ class MetricStore:
 
 
 class PerTokenMetricStore(MetricStore):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, name, **kwargs):
+        super().__init__(name, metric_type=MetricType.LOG)
         if "precision" in kwargs:
             np.set_printoptions(precision=kwargs["precision"])
         else:
@@ -82,6 +83,6 @@ class MetricStoreCollection:
 
     def __str__(self) -> str:
         return "\n".join([str(metric) for metric in self.metrics])
-    
+
     def to_dict(self):
         return {metric.get_name(): metric.get_value() for metric in self.metrics}

@@ -7,7 +7,7 @@ from iit.model_pairs.base_model_pair import HLNode
 from iit.model_pairs import IITBehaviorModelPair, StopGradModelPair
 
 
-class IOI_ModelPair(StopGradModelPair):
+class IOI_ModelPair(IITBehaviorModelPair):
     def __init__(self, hl_model, ll_model, corr, training_args={}):
         super().__init__(hl_model, ll_model, corr, training_args)
         default_training_args = {"next_token": False}
@@ -39,7 +39,7 @@ class IOI_ModelPair(StopGradModelPair):
                 MetricStore("val/iit_loss", MetricType.LOSS),
                 MetricStore("val/IIA", MetricType.ACCURACY),
                 MetricStore("val/accuracy", MetricType.ACCURACY),
-                PerTokenMetricStore("val/per_token_accuracy", MetricType.ACCURACY),
+                PerTokenMetricStore("val/per_token_accuracy"),
             ]
         )
 
@@ -88,6 +88,10 @@ class IOI_ModelPair(StopGradModelPair):
         return {
             "val/iit_loss": loss.item(),
             "val/IIA": IIA,
-            "val/accuracy": per_token_accuracy.mean().item() if self.next_token else per_token_accuracy[-1],
+            "val/accuracy": (
+                per_token_accuracy.mean().item()
+                if self.next_token
+                else per_token_accuracy[-1]
+            ),
             "val/per_token_accuracy": per_token_accuracy,
         }
