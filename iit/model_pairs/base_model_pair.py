@@ -274,6 +274,7 @@ class BaseModelPair(ABC):
         if use_wandb:
             wandb.config.update(training_args)
             wandb.config.update({"method": self.wandb_method})
+            wandb.run.log_code()
 
         for epoch in tqdm(range(epochs)):
             train_metrics = self._run_train_epoch(train_loader, loss_fn, optimizer)

@@ -85,7 +85,7 @@ class IOI_HL(HookedRootModule, HLModel):
         super().__init__()
         self.duplicate_head = DuplicateHead()
         self.hook_duplicate = HookPoint()
-        self.previous_head = PreviousHead()
+        # self.previous_head = PreviousHead()
         self.hook_previous = HookPoint()
         self.s_inhibition_head = SInhibitionHead()
         self.hook_s_inhibition = HookPoint()
@@ -95,22 +95,6 @@ class IOI_HL(HookedRootModule, HLModel):
         self.d_vocab = d_vocab
         self.setup()
 
-    # def get_idx_to_intermediate(self, name: HookName):
-    #     """
-    #     Returns a function that takes in a list of intermediate variables and returns the index of the one to use.
-    #     """
-    #     if name == 'hook_duplicate':
-    #         return lambda intermediate_vars: intermediate_vars[:, 0]
-    #     elif name == 'hook_previous':
-    #         return lambda intermediate_vars: intermediate_vars[:, 1]
-    #     elif name == 'hook_induction':
-    #         return lambda intermediate_vars: intermediate_vars[:, 2]
-    #     elif name == 'hook_s_inhibition':
-    #         return lambda intermediate_vars: intermediate_vars[:, 3]
-    #     elif name == 'hook_name_mover':
-    #         return lambda intermediate_vars: intermediate_vars[:, 4]
-    #     else:
-    #         raise NotImplementedError(name)
     def is_categorical(self):
         return True
     
@@ -128,10 +112,10 @@ class IOI_HL(HookedRootModule, HLModel):
         assert duplicate.shape == input.shape
         duplicate = self.hook_duplicate(duplicate)
         show(f"duplicate: {duplicate}")
-        previous = self.previous_head(input)
-        assert previous.shape == input.shape
-        previous = self.hook_previous(previous)
-        show(f"previous: {previous}")
+        # previous = self.previous_head(input)
+        # assert previous.shape == input.shape
+        # previous = self.hook_previous(previous)
+        # show(f"previous: {previous}")
         s_inhibition = self.s_inhibition_head(input, duplicate)
         assert s_inhibition.shape == input.shape
         s_inhibition = self.hook_s_inhibition(s_inhibition)
