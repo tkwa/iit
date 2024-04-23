@@ -83,6 +83,7 @@ class IOI_HL(HookedRootModule, HLModel):
     """
     def __init__(self, d_vocab, names):
         super().__init__()
+        self.all_nodes_hook = HookPoint()
         self.duplicate_head = DuplicateHead()
         self.hook_duplicate = HookPoint()
         # self.previous_head = PreviousHead()
@@ -108,6 +109,7 @@ class IOI_HL(HookedRootModule, HLModel):
         # print([a.shape for a in args])
         # duplicate, previous, induction, s_inhibition, name_mover = [intermediate_data[:, i] for i in range(5)]
         # print(f"intermediate_data is a {type(intermediate_data)}; duplicate is a {type(duplicate)}")
+        input = self.all_nodes_hook(input)
         duplicate = self.duplicate_head(input)
         assert duplicate.shape == input.shape
         duplicate = self.hook_duplicate(duplicate)
