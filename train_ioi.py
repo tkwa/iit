@@ -57,7 +57,7 @@ ioi_dataset = IOIDatasetWrapper(
 HookName = str
 HLCache = dict
 all_layers = [f"blocks.{i}.attn.hook_result" for i in range(ll_cfg.n_layers)]
-
+all_layers += [f"blocks.{i}.mlp.hook_post" for i in range(ll_cfg.n_layers)]
 corr = {
     # "hook_duplicate": {all_layers[0]},
     # # "hook_previous": {"blocks.1.attn.hook_result"},
@@ -107,7 +107,7 @@ with open(f"{save_dir}/{model_dir}/ll_model_cfg.json", "w") as f:
 # log metrics
 with open(f"{save_dir}/{model_dir}/metrics.log", "w") as f:
     f.write(f"Epochs: {epochs}\n")
-    f.write(f"Early stop: {model_pair._check_early_stop_condition(model_pair.test_metrics)}\n")
+    # f.write(f"Early stop: {model_pair._check_early_stop_condition(model_pair.test_metrics)}\n")
     f.write("\n\n--------------------------------\n\n")
     f.write("Training metrics:\n")
     f.write(str(model_pair.training_metrics))

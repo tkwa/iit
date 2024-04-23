@@ -43,6 +43,7 @@ class HLNode:
     def __repr__(self) -> str:
         return self.name
 
+
 @dataclass
 class LLNode:
     name: HookName
@@ -59,6 +60,7 @@ class LLNode:
 
     def get_index(self):
         return self.index.as_index
+
 
 class BaseModelPair(ABC):
     hl_model: HookedRootModule
@@ -152,30 +154,34 @@ class BaseModelPair(ABC):
 
     def sample_hl_name(self) -> HLNode:
         return self.rng.choice(list(self.corr.keys()))
-    
-    def make_hl_ablation_hook(
-            self, hl_node: HLNode
-    ):
+
+    def make_hl_ablation_hook(self, hl_node: HLNode):
         assert isinstance(hl_node, HLNode), ValueError(
             f"hl_node is not an instance of HLNode, but {type(hl_node)}"
         )
+
         def hl_ablation_hook(hook_point_out: Tensor, hook: HookPoint) -> Tensor:
             out = hook_point_out.clone()
 
             if isinstance(out, float) or isinstance(out, int):
-                assert hl_node.index is Ix[[None]] or hl_node.index is None, "scalars cannot be indexed"
+                assert (
+                    hl_node.index is Ix[[None]] or hl_node.index is None
+                ), "scalars cannot be indexed"
                 return self.hl_cache[hook.name]
-            
+
             out[hl_node.index.as_index] = self.hl_cache[hook.name][
                 hl_node.index.as_index
             ]
             return out
+
         if hl_node.index is not None:
             return hl_ablation_hook
         else:
             return self.hl_ablation_hook
-    
-    def hl_ablation_hook(self, hook_point_out: Tensor, hook: HookPoint) -> Tensor: # TODO: remove this
+
+    def hl_ablation_hook(
+        self, hook_point_out: Tensor, hook: HookPoint
+    ) -> Tensor:  # TODO: remove this
         out = self.hl_cache[hook.name]
         return out
 
@@ -188,9 +194,8 @@ class BaseModelPair(ABC):
 
         def ll_ablation_hook(hook_point_out: Tensor, hook: HookPoint) -> Tensor:
             out = hook_point_out.clone()
-            out[ll_node.index.as_index] = self.ll_cache[hook.name][
-                ll_node.index.as_index
-            ]
+            index = ll_node.index if ll_node.index is not None else Ix[[None]]
+            out[index.as_index] = self.ll_cache[hook.name][index.as_index]
             return out
 
         return ll_ablation_hook
@@ -211,7 +216,7 @@ class BaseModelPair(ABC):
             t.nn.utils.clip_grad_norm_(
                 self.ll_model.parameters(), self.training_args["clip_grad_norm"]
             )
-    
+
     def step_scheduler(self, lr_scheduler, test_metrics):
         if isinstance(lr_scheduler, t.optim.lr_scheduler.ReduceLROnPlateau):
             val_metric = self.training_args.get("scheduler_val_metric", "val/accuracy")
@@ -231,8 +236,8 @@ class BaseModelPair(ABC):
             lr_scheduler.step()
         except Exception as e:
             print(
-                    f"WARNING: Could not step lr_scheduler {lr_scheduler} with exception {e}"
-                )
+                f"WARNING: Could not step lr_scheduler {lr_scheduler} with exception {e}"
+            )
 
     def train(
         self,
