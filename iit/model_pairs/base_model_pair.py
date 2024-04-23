@@ -286,7 +286,8 @@ class BaseModelPair(ABC):
             test_metrics = self._run_eval_epoch(test_loader, loss_fn)
             if scheduler_cls:
                 self.step_scheduler(lr_scheduler, test_metrics)
-
+            self.test_metrics = test_metrics
+            self.train_metrics = train_metrics
             self._print_and_log_metrics(
                 epoch, train_metrics.metrics + test_metrics.metrics, use_wandb
             )
