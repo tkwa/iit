@@ -237,7 +237,10 @@ def make_combined_dataframe_of_results(
 
 def save_result(df: pd.DataFrame, save_dir: str, model_pair: mp.BaseModelPair = None):
     os.makedirs(save_dir, exist_ok=True)
-    dfi.export(df, f"{save_dir}/results.png")
+    try:
+        dfi.export(df, f"{save_dir}/results.png")
+    except Exception as e:
+        print(f"Error exporting dataframe to image: {e}")
     df.to_csv(f"{save_dir}/results.csv")
     if model_pair is None:
         return
