@@ -98,14 +98,16 @@ def check_causal_effect(
     return results
 
 
-def get_mean_cache(model_pair, dataset):
-    loader = dataset.make_loader(batch_size=len(dataset), num_workers=0)
-    batch = next(iter(loader))
-    cache_dict = {}
-    _, cache = model_pair.ll_model.run_with_cache(batch[0])
-    for key, value in cache.items():
-        cache_dict[key] = value.mean(dim=0).unsqueeze(0)
-    return cache_dict
+def get_mean_cache(model_pair, dataset, batch_size=8):
+    loader = dataset.make_loader(batch_size=batch_size, num_workers=0)
+    mean_cache = {}
+    for batch in tqdm(loader):
+        _, cache = model_pair.ll_model.run_with_cache(batch[0])
+        for node, tensor in cache.items():
+            if node not in mean_cache:
+                mean_cache[node] = t.zeros_like(tensor[0].unsqueeze(0))
+            mean_cache[node] += tensor.mean(dim=0).unsqueeze(0) / len(loader)
+    return mean_cache               
 
 
 def make_ablation_hook(node: mp.LLNode, mean_cache: dict[str, t.Tensor], use_mean_cache: bool = True) -> callable:
