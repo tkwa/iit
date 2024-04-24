@@ -12,3 +12,4 @@ weights/
 *.log
 *.pth
 *.json
+*.csv

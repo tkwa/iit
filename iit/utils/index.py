@@ -78,7 +78,7 @@ class TorchIndex:
         return self.__repr__(use_actual_colon=use_actual_colon)
 
     def intersects(self, other) -> bool:
-        if other is None:
+        if other is None or self == Ix[[None]] or other == Ix[[None]]:
             return True # None means all indices
         if len(self.as_index) != len(other.as_index):
             raise ValueError("Cannot compare indices of different lengths")

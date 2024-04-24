@@ -11,7 +11,9 @@ class IITDataset(Dataset):
     Each thing is randomly sampled from a pair of datasets.
     """
 
-    def __init__(self, base_data, ablation_data, seed=0, every_combination=False, device=DEVICE):
+    def __init__(
+        self, base_data, ablation_data, seed=0, every_combination=False, device=DEVICE
+    ):
         # For vanilla IIT, base_data and ablation_data are the same
         self.base_data = base_data
         self.ablation_data = ablation_data
@@ -42,15 +44,19 @@ class IITDataset(Dataset):
         return len(self.base_data)
 
     @staticmethod
+    def get_encoded_input_from_torch_input(xy, device=DEVICE):
+        x, y, int_vars = zip(*xy)
+        x = torch.stack([x_i.to(device) for x_i in x])
+        y = torch.stack([y_i.to(device) for y_i in y])
+        int_vars = torch.stack([iv.to(device) for iv in int_vars])
+        return x, y, int_vars
+
+    @staticmethod
     def collate_fn(batch, device=DEVICE):
-        def get_encoded_input_from_torch_input(xy):
-            x, y, int_vars = zip(*xy)
-            x = torch.stack([x_i.to(device) for x_i in x])
-            y = torch.stack([y_i.to(device) for y_i in y])
-            int_vars = torch.stack([iv.to(device) for iv in int_vars])
-            return x, y, int_vars
         base_input, ablation_input = zip(*batch)
-        return get_encoded_input_from_torch_input(base_input), get_encoded_input_from_torch_input(ablation_input)
+        return IITDataset.get_encoded_input_from_torch_input(
+            base_input, device
+        ), IITDataset.get_encoded_input_from_torch_input(ablation_input, device)
 
     def make_loader(
         self,
@@ -64,6 +70,7 @@ class IITDataset(Dataset):
             num_workers=num_workers,
             collate_fn=lambda x: self.collate_fn(x, self.device),
         )
+
 
 def train_test_split(dataset, test_size=0.2, random_state=None):
     if random_state is not None:

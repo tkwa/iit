@@ -25,7 +25,11 @@ HLCache = dict
 class HLNode:
     name: HookName
     num_classes: int
-    index: Optional[TorchIndex] = None
+    index: Optional[TorchIndex] = Ix[[None]]
+
+    def __post_init__(self):
+        if self.index is None:
+            self.index = Ix[[None]]
 
     def __hash__(self) -> int:
         return hash(self.name)
@@ -49,6 +53,10 @@ class LLNode:
     name: HookName
     index: TorchIndex
     subspace: Optional[t.Tensor] = None
+
+    def __post_init__(self):
+        if self.index is None:
+            self.index = Ix[[None]]
 
     def __eq__(self, other):
         return isinstance(other, LLNode) and dataclasses.astuple(
@@ -145,6 +153,10 @@ class BaseModelPair(ABC):
             print(f"{hl_node=}, {ll_nodes=}")
             print(f"{hl_output=}")
         return hl_output, ll_output
+
+    @staticmethod
+    def get_label_idxs():
+        return Ix[[None]]
 
     def make_hl_model(self, hl_graph):
         raise NotImplementedError

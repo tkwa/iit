@@ -5,7 +5,7 @@ from torch import Tensor
 import torch as t
 from iit.model_pairs.base_model_pair import HLNode
 from iit.model_pairs import IITBehaviorModelPair, StopGradModelPair
-
+import iit.utils.index as index
 
 class IOI_ModelPair(IITBehaviorModelPair):
     def __init__(self, hl_model, ll_model, corr, training_args={}):
@@ -31,6 +31,10 @@ class IOI_ModelPair(IITBehaviorModelPair):
 
         self.__loss_fn = per_token_weighted_cross_entropy
         return self.__loss_fn
+
+    @staticmethod
+    def get_label_idxs():
+        return index.Ix[:, -1]
 
     @staticmethod
     def make_test_metrics():
