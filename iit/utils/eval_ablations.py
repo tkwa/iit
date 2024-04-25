@@ -8,12 +8,26 @@ import pandas as pd
 from transformer_lens.HookedTransformer import HookPoint
 import dataframe_image as dfi
 import os
+from enum import Enum
 
 
-def do_intervention(model_pair: mp.BaseModelPair, base_input, ablation_input, node: mp.LLNode, hooker: callable):
+class Categorical_Metric(Enum):
+    ACCURACY = 1
+    KL = 2
+
+
+def do_intervention(
+    model_pair: mp.BaseModelPair,
+    base_input,
+    ablation_input,
+    node: mp.LLNode,
+    hooker: callable,
+):
     _, cache = model_pair.ll_model.run_with_cache(ablation_input)
     model_pair.ll_cache = cache  # TODO: make this better when converting to script
-    out = model_pair.ll_model.run_with_hooks(base_input, fwd_hooks=[(node.name, hooker)])
+    out = model_pair.ll_model.run_with_hooks(
+        base_input, fwd_hooks=[(node.name, hooker)]
+    )
     return out
 
 
@@ -26,32 +40,91 @@ def resample_ablate_node(
     hooker: callable,
     atol=5e-2,
     verbose=False,
+    categorical_metric: Categorical_Metric = Categorical_Metric.KL,
 ):  # TODO: change name to reflect that it's not just for resampling
     base_x, base_y, _ = base_in
     ablation_x, ablation_y, _ = ablation_in
     ll_out = do_intervention(model_pair, base_x, ablation_x, node, hooker)
+    base_ll_out = model_pair.ll_model(base_x).squeeze()  # not used for result
+    base_hl_out = model_pair.hl_model(base_in).squeeze()
     if verbose:
         print(node)
 
     if model_pair.hl_model.is_categorical():
-        # TODO: add other metrics here
-        base_hl_out = model_pair.hl_model(base_in).squeeze()
         label_idx = model_pair.get_label_idxs()
         base_label = t.argmax(base_y, dim=-1)[label_idx.as_index]
         ablation_label = t.argmax(ablation_y, dim=-1)[label_idx.as_index]
         label_unchanged = base_label == ablation_label
-        # take argmax of ll_out
-        ll_out = t.argmax(ll_out, dim=-1)[label_idx.as_index]
-        hl_out = t.argmax(base_hl_out, dim=-1)[label_idx.as_index]
-        ll_unchanged = ll_out == hl_out
-        changed_result = (~label_unchanged).cpu().float() * (~ll_unchanged).cpu().float()
-        results[node] += changed_result.sum().item() / (~label_unchanged).float().sum().item()
+
+        if categorical_metric == Categorical_Metric.KL:
+            ll_out = ll_out[label_idx.as_index]
+            base_hl_out = base_hl_out[label_idx.as_index]
+            base_ll_out = base_ll_out[label_idx.as_index]
+            # check if ll_out is a distribution
+            pmf_checker = lambda x: t.allclose(
+                x.sum(dim=-1), t.ones_like(x.sum(dim=-1))
+            )
+            if not pmf_checker(ll_out):
+                ll_out = t.nn.functional.softmax(ll_out, dim=-1)
+            if not pmf_checker(base_hl_out):
+                base_hl_out = t.nn.functional.softmax(base_hl_out, dim=-1)
+            if not pmf_checker(base_ll_out):
+                base_ll_out = t.nn.functional.softmax(base_ll_out, dim=-1)
+            kl = t.nn.functional.kl_div(
+                ll_out.log(), base_hl_out, reduction="none", log_target=False
+            ).sum(dim=-1)
+            results[node] += kl.mean().item()
+
+            if verbose:
+                kl_old_vs_new = t.nn.functional.kl_div(
+                    ll_out.log(), base_ll_out, reduction="none", log_target=False
+                ).sum(dim=-1)
+                print("kl base_hl vs ll_out: ", kl.mean().item())
+                print("kl base_ll vs ll_out: ", kl_old_vs_new.mean().item())
+                # check if ll_out and base_ll_out are the same
+                print(
+                    "ll_out == base_ll_out:",
+                    t.isclose(ll_out, base_ll_out, atol=atol).float().mean(),
+                )
+                print("fraction of labels changed:", (~label_unchanged).float().mean())
+                print()
+
+        elif categorical_metric == Categorical_Metric.ACCURACY:
+            # TODO: Move to a function
+            # take argmax of everything
+            ll_out = t.argmax(ll_out, dim=-1)[label_idx.as_index]
+            base_hl_out = t.argmax(base_hl_out, dim=-1)[label_idx.as_index]
+            base_ll_out = t.argmax(base_ll_out, dim=-1)[label_idx.as_index]
+
+            # calculate metrics
+            ll_unchanged = ll_out == base_hl_out
+            ll_out_unchanged = ll_out == base_ll_out  # not used for result
+            accuracy = base_ll_out == base_hl_out  # not used for result
+            changed_result = (~label_unchanged).cpu().float() * (
+                ~ll_unchanged
+            ).cpu().float()
+            results[node] += (
+                changed_result.sum().item() / (~label_unchanged).float().sum().item()
+            )
+
+            if verbose:
+                print("label: ", (~label_unchanged).sum().item() / len(label_unchanged))
+                print("ll_vs_hl", (~ll_unchanged).sum().item() / len(ll_unchanged))
+                print(
+                    "ll_vs_ll", (~ll_out_unchanged).sum().item() / len(ll_out_unchanged)
+                )
+                print("accuracy", accuracy.sum().item() / len(accuracy))
     else:
-        base_hl_out = model_pair.hl_model(base_in).squeeze()
         label_unchanged = base_y == ablation_y
-        ll_unchanged = t.isclose(ll_out.float().squeeze(), base_hl_out.float().to(ll_out.device), atol=atol)
-        changed_result = (~label_unchanged).cpu().float() * (~ll_unchanged).cpu().float()
-        results[node] += changed_result.sum().item() / (~label_unchanged).float().sum().item()
+        ll_unchanged = t.isclose(
+            ll_out.float().squeeze(), base_hl_out.float().to(ll_out.device), atol=atol
+        )
+        changed_result = (~label_unchanged).cpu().float() * (
+            ~ll_unchanged
+        ).cpu().float()
+        results[node] += (
+            changed_result.sum().item() / (~label_unchanged).float().sum().item()
+        )
 
         if verbose:
             print(
@@ -81,7 +154,11 @@ def check_causal_effect(
     all_nodes = (
         get_nodes_not_in_circuit(model_pair.ll_model, model_pair.corr)
         if node_type == "n"
-        else get_all_nodes(model_pair.ll_model) if node_type == "a" else get_nodes_in_circuit(model_pair.corr)
+        else (
+            get_all_nodes(model_pair.ll_model)
+            if node_type == "a"
+            else get_nodes_in_circuit(model_pair.corr)
+        )
     )
 
     for node in all_nodes:
@@ -91,7 +168,9 @@ def check_causal_effect(
     loader = dataset.make_loader(batch_size=batch_size, num_workers=0)
     for base_in, ablation_in in tqdm(loader):
         for node, hooker in hookers.items():
-            resample_ablate_node(model_pair, base_in, ablation_in, node, results, hooker, verbose=verbose)
+            resample_ablate_node(
+                model_pair, base_in, ablation_in, node, results, hooker, verbose=verbose
+            )
 
     for node, result in results.items():
         results[node] = result / len(loader)
@@ -107,10 +186,12 @@ def get_mean_cache(model_pair, dataset, batch_size=8):
             if node not in mean_cache:
                 mean_cache[node] = t.zeros_like(tensor[0].unsqueeze(0))
             mean_cache[node] += tensor.mean(dim=0).unsqueeze(0) / len(loader)
-    return mean_cache               
+    return mean_cache
 
 
-def make_ablation_hook(node: mp.LLNode, mean_cache: dict[str, t.Tensor], use_mean_cache: bool = True) -> callable:
+def make_ablation_hook(
+    node: mp.LLNode, mean_cache: dict[str, t.Tensor], use_mean_cache: bool = True
+) -> callable:
     if node.subspace is not None:
         raise NotImplementedError("Subspace not supported yet.")
 
@@ -151,21 +232,37 @@ def ablate_node(
         ll_unchanged = ll_out == base_hl_out
         accuracy = base_ll_out == base_hl_out
         changed_result = (~ll_unchanged).cpu().float() * accuracy.cpu().float()
-        results[node] += changed_result.sum().item() / (accuracy.float().sum().item() + 1e-6)
+        results[node] += changed_result.sum().item() / (
+            accuracy.float().sum().item() + 1e-6
+        )
     else:
         base_hl_out = model_pair.hl_model(base_in).squeeze()
         base_ll_out = model_pair.ll_model(base_x).squeeze()
-        ll_unchanged = t.isclose(ll_out.float().squeeze(), base_hl_out.float().to(ll_out.device), atol=atol)
-        accuracy = t.isclose(base_ll_out.float(), base_hl_out.float(), atol=atol).cpu().float()
+        ll_unchanged = t.isclose(
+            ll_out.float().squeeze(), base_hl_out.float().to(ll_out.device), atol=atol
+        )
+        accuracy = (
+            t.isclose(base_ll_out.float(), base_hl_out.float(), atol=atol).cpu().float()
+        )
         changed_result = (~ll_unchanged).cpu().float() * accuracy
-        results[node] += changed_result.sum().item() / (accuracy.float().sum().item() + 1e-6)
+        results[node] += changed_result.sum().item() / (
+            accuracy.float().sum().item() + 1e-6
+        )
 
-def get_causal_effects_for_all_nodes(model_pair, uni_test_set, batch_size=256, use_mean_cache=True):
+
+def get_causal_effects_for_all_nodes(
+    model_pair, uni_test_set, batch_size=256, use_mean_cache=True
+):
     if use_mean_cache:
         mean_cache = get_mean_cache(model_pair, uni_test_set, batch_size=batch_size)
-    za_result_not_in_circuit = check_causal_effect_on_ablation(model_pair, uni_test_set, node_type="n", verbose=False,  mean_cache=mean_cache)
-    za_result_in_circuit = check_causal_effect_on_ablation(model_pair, uni_test_set, node_type="c", verbose=False, mean_cache=mean_cache)
+    za_result_not_in_circuit = check_causal_effect_on_ablation(
+        model_pair, uni_test_set, node_type="n", verbose=False, mean_cache=mean_cache
+    )
+    za_result_in_circuit = check_causal_effect_on_ablation(
+        model_pair, uni_test_set, node_type="c", verbose=False, mean_cache=mean_cache
+    )
     return za_result_not_in_circuit, za_result_in_circuit
+
 
 def check_causal_effect_on_ablation(
     model_pair: mp.BaseModelPair,
@@ -182,7 +279,11 @@ def check_causal_effect_on_ablation(
     all_nodes = (
         get_nodes_not_in_circuit(model_pair.ll_model, model_pair.corr)
         if node_type == "n"
-        else get_all_nodes(model_pair.ll_model) if node_type == "a" else get_nodes_in_circuit(model_pair.corr)
+        else (
+            get_all_nodes(model_pair.ll_model)
+            if node_type == "a"
+            else get_nodes_in_circuit(model_pair.corr)
+        )
     )
 
     for node in all_nodes:
@@ -203,17 +304,19 @@ def make_dataframe_of_results(result_not_in_circuit, result_in_circuit):
     def create_name(node):
         if "mlp" in node.name:
             return node.name
-        if node.index is not None and node.index!=index.Ix[[None]]:
+        if node.index is not None and node.index != index.Ix[[None]]:
             return f"{node.name}, head {str(node.index).split(',')[-2]}"
         else:
             return f"{node.name}, head [:]"
-    
+
     df = pd.DataFrame(
         {
             "node": [create_name(node) for node in result_not_in_circuit.keys()]
             + [create_name(node) for node in result_in_circuit.keys()],
-            "status": ["not_in_circuit"] * len(result_not_in_circuit) + ["in_circuit"] * len(result_in_circuit),
-            "causal effect": list(result_not_in_circuit.values()) + list(result_in_circuit.values()),
+            "status": ["not_in_circuit"] * len(result_not_in_circuit)
+            + ["in_circuit"] * len(result_in_circuit),
+            "causal effect": list(result_not_in_circuit.values())
+            + list(result_in_circuit.values()),
         }
     )
     df = df.sort_values("status", ascending=False)
