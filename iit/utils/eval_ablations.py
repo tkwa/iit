@@ -160,17 +160,22 @@ def ablate_node(
         changed_result = (~ll_unchanged).cpu().float() * accuracy
         results[node] += changed_result.sum().item() / (accuracy.float().sum().item() + 1e-6)
 
+def get_causal_effects_for_all_nodes(model_pair, uni_test_set, batch_size=256, use_mean_cache=True):
+    if use_mean_cache:
+        mean_cache = get_mean_cache(model_pair, uni_test_set, batch_size=batch_size)
+    za_result_not_in_circuit = check_causal_effect_on_ablation(model_pair, uni_test_set, node_type="n", verbose=False,  mean_cache=mean_cache)
+    za_result_in_circuit = check_causal_effect_on_ablation(model_pair, uni_test_set, node_type="c", verbose=False, mean_cache=mean_cache)
+    return za_result_not_in_circuit, za_result_in_circuit
 
 def check_causal_effect_on_ablation(
     model_pair: mp.BaseModelPair,
     dataset: IITDataset,
     batch_size: int = 256,
     node_type: str = "a",
-    use_mean_cache: bool = False,
+    mean_cache: dict[str, t.Tensor] = None,
     verbose: bool = False,
 ):
-    if use_mean_cache:
-        mean_cache = get_mean_cache(model_pair, dataset)
+    use_mean_cache = True if mean_cache else False
     assert node_type in ["a", "c", "n"], "type must be one of 'a', 'c', or 'n'"
     hookers = {}
     results = {}

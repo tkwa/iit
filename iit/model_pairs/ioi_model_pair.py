@@ -4,10 +4,10 @@ from typing import Callable
 from torch import Tensor
 import torch as t
 from iit.model_pairs.base_model_pair import HLNode
-from iit.model_pairs import IITBehaviorModelPair, StopGradModelPair
+from iit.model_pairs import IITBehaviorModelPair, StopGradModelPair, StrictIITModelPair
 import iit.utils.index as index
 
-class IOI_ModelPair(IITBehaviorModelPair):
+class IOI_ModelPair(StrictIITModelPair):
     def __init__(self, hl_model, ll_model, corr, training_args={}):
         super().__init__(hl_model, ll_model, corr, training_args)
         default_training_args = {"next_token": False}

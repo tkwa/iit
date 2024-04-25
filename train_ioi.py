@@ -4,7 +4,7 @@ from iit.utils.iit_dataset import IITDataset, train_test_split
 import iit.model_pairs as mp
 from iit.model_pairs.base_model_pair import *
 from iit.utils.metric import *
-from iit.tasks.ioi import NAMES, make_ioi_dataset_and_hl, corr, ioi_cfg
+from iit.tasks.ioi import NAMES, make_ioi_dataset_and_hl, corr, corr_dict, ioi_cfg
 import os
 import json
 
@@ -21,6 +21,7 @@ training_args = {
     "next_token": True,
     "lr_scheduler": None,
     "grad_clip_norm": 1.0,
+    "early_stop": True,
 }
 t.manual_seed(0)
 np.random.seed(0)
@@ -74,3 +75,7 @@ with open(f"{save_dir}/{model_dir}/metrics.log", "w") as f:
 
 # save the model
 torch.save(ll_model.state_dict(), f"{save_dir}/{model_dir}/ll_model.pth")
+
+# save corr dict
+with open(f"{save_dir}/{model_dir}/corr.json", "w") as f:
+    json.dump(corr_dict, f)
