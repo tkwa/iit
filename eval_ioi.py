@@ -2,7 +2,7 @@ import torch
 import argparse
 import os
 import transformer_lens
-from iit.tasks.ioi import make_ioi_dataset_and_hl, NAMES, ioi_cfg, make_ioi_corr_from_dict
+from iit.tasks.ioi import make_ioi_dataset_and_hl, NAMES, ioi_cfg, make_ioi_corr_from_dict, corr_dict
 from iit.utils.eval_ablations import *
 import numpy as np
 from iit.utils.iit_dataset import IITDataset
@@ -34,9 +34,14 @@ try:
     ll_model.load_state_dict(torch.load(f"{save_dir}/ll_model.pth"))
 except FileNotFoundError:
     raise FileNotFoundError(f"Model not found at {save_dir}")
+
 # load corr
-corr_dict = json.load(open(f"{save_dir}/corr.json"))
+if os.path.exists(f"{save_dir}/corr.json"):
+    corr_dict = json.load(open(f"{save_dir}/corr.json"))
+else:
+    print("WARNING: No corr.json found, using default corr_dict")
 corr = make_ioi_corr_from_dict(corr_dict)
+
 # load dataset
 num_samples = 18000
 
@@ -50,7 +55,7 @@ model_pair = mp.IOI_ModelPair(
 
 np.random.seed(0)
 t.manual_seed(0)
-result_not_in_circuit = check_causal_effect(model_pair, test_set, node_type="n", verbose=False)
+result_not_in_circuit = check_causal_effect(model_pair, test_set, node_type="n", verbose=True)
 result_in_circuit = check_causal_effect(model_pair, test_set, node_type="c", verbose=False)
 
 metric_collection = model_pair._run_eval_epoch(test_set.make_loader(256, 0), model_pair.loss_fn)
