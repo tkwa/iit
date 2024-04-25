@@ -2,6 +2,7 @@ import iit.model_pairs as mp
 import torch as t
 from typing import Dict
 from iit.utils.node_picker import *
+from iit.utils.eval_metrics import *
 from tqdm import tqdm
 from iit.utils.iit_dataset import IITDataset
 import pandas as pd
@@ -57,28 +58,11 @@ def resample_ablate_node(
         label_unchanged = base_label == ablation_label
 
         if categorical_metric == Categorical_Metric.KL:
-            ll_out = ll_out[label_idx.as_index]
-            base_hl_out = base_hl_out[label_idx.as_index]
-            base_ll_out = base_ll_out[label_idx.as_index]
-            # check if ll_out is a distribution
-            pmf_checker = lambda x: t.allclose(
-                x.sum(dim=-1), t.ones_like(x.sum(dim=-1))
-            )
-            if not pmf_checker(ll_out):
-                ll_out = t.nn.functional.softmax(ll_out, dim=-1)
-            if not pmf_checker(base_hl_out):
-                base_hl_out = t.nn.functional.softmax(base_hl_out, dim=-1)
-            if not pmf_checker(base_ll_out):
-                base_ll_out = t.nn.functional.softmax(base_ll_out, dim=-1)
-            kl = t.nn.functional.kl_div(
-                ll_out.log(), base_hl_out, reduction="none", log_target=False
-            ).sum(dim=-1)
+            kl = kl_div(ll_out, base_hl_out, label_idx)
             results[node] += kl.mean().item()
 
             if verbose:
-                kl_old_vs_new = t.nn.functional.kl_div(
-                    ll_out.log(), base_ll_out, reduction="none", log_target=False
-                ).sum(dim=-1)
+                kl_old_vs_new = kl_div(ll_out, base_ll_out, label_idx)
                 print("kl base_hl vs ll_out: ", kl.mean().item())
                 print("kl base_ll vs ll_out: ", kl_old_vs_new.mean().item())
                 # check if ll_out and base_ll_out are the same
