@@ -13,7 +13,7 @@ ioi_cfg = {
     "d_model": d_model,
     "d_head": d_head,
 }
-all_attns = [f"blocks.{i}.attn.hook_result" for i in range(ioi_cfg["n_layers"])]
+all_attns = [f"blocks.{i}.attn.hook_z" for i in range(ioi_cfg["n_layers"])]
 all_mlps = [f"blocks.{i}.mlp.hook_post" for i in range(ioi_cfg["n_layers"])]
 corr_dict = {
     "hook_duplicate": [all_attns[0]],
@@ -33,3 +33,8 @@ make_ioi_corr_from_dict = lambda d: {
 }
 
 corr = make_ioi_corr_from_dict(corr_dict)
+
+suffixes = {
+    "attn": "attn.hook_z",
+    "mlp": "mlp.hook_post",
+}

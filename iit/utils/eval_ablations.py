@@ -131,12 +131,16 @@ def check_causal_effect(
     batch_size: int = 256,
     node_type: str = "a",
     verbose: bool = False,
+    suffixes={
+        "attn": "attn.hook_result",
+        "mlp": "mlp.hook_post",
+    },
 ):
     assert node_type in ["a", "c", "n"], "type must be one of 'a', 'c', or 'n'"
     hookers = {}
     results = {}
     all_nodes = (
-        get_nodes_not_in_circuit(model_pair.ll_model, model_pair.corr)
+        get_nodes_not_in_circuit(model_pair.ll_model, model_pair.corr, suffixes)
         if node_type == "n"
         else (
             get_all_nodes(model_pair.ll_model)
@@ -235,15 +239,32 @@ def ablate_node(
 
 
 def get_causal_effects_for_all_nodes(
-    model_pair, uni_test_set, batch_size=256, use_mean_cache=True
+    model_pair,
+    uni_test_set,
+    batch_size=256,
+    use_mean_cache=True,
+    suffixes={
+        "attn": "attn.hook_result",
+        "mlp": "mlp.hook_post",
+    },
 ):
     if use_mean_cache:
         mean_cache = get_mean_cache(model_pair, uni_test_set, batch_size=batch_size)
     za_result_not_in_circuit = check_causal_effect_on_ablation(
-        model_pair, uni_test_set, node_type="n", verbose=False, mean_cache=mean_cache
+        model_pair,
+        uni_test_set,
+        node_type="n",
+        verbose=False,
+        mean_cache=mean_cache,
+        suffixes=suffixes,
     )
     za_result_in_circuit = check_causal_effect_on_ablation(
-        model_pair, uni_test_set, node_type="c", verbose=False, mean_cache=mean_cache
+        model_pair,
+        uni_test_set,
+        node_type="c",
+        verbose=False,
+        mean_cache=mean_cache,
+        suffixes=suffixes,
     )
     return za_result_not_in_circuit, za_result_in_circuit
 
@@ -255,13 +276,17 @@ def check_causal_effect_on_ablation(
     node_type: str = "a",
     mean_cache: dict[str, t.Tensor] = None,
     verbose: bool = False,
+    suffixes={
+        "attn": "attn.hook_result",
+        "mlp": "mlp.hook_post",
+    },
 ):
     use_mean_cache = True if mean_cache else False
     assert node_type in ["a", "c", "n"], "type must be one of 'a', 'c', or 'n'"
     hookers = {}
     results = {}
     all_nodes = (
-        get_nodes_not_in_circuit(model_pair.ll_model, model_pair.corr)
+        get_nodes_not_in_circuit(model_pair.ll_model, model_pair.corr, suffixes)
         if node_type == "n"
         else (
             get_all_nodes(model_pair.ll_model)

@@ -101,3 +101,36 @@ def test_get_params_in_circuit():
         LLNode(name='blocks.1.attn.b_V', index=Ix[[None]], subspace=None),
         LLNode(name='blocks.1.attn.b_O', index=Ix[[None]], subspace=None)
     ]
+
+def test_suffix_maker():
+    n_layers = 6
+    all_attns = [f"blocks.{i}.hook_attn_out" for i in range(n_layers)]
+    all_mlps = [f"blocks.{i}.mlp.hook_post" for i in range(n_layers)]
+
+    corr_dict = {
+        "all_nodes_hook": [*all_mlps[:2], *all_attns[:4]]
+    }
+    make_corr_from_dict = lambda d: {
+        HLNode(k, -1): {LLNode(name=name, index=None) for name in v}
+        for k, v in d.items()
+    }
+    corr = make_corr_from_dict(corr_dict)
+    hook_suffixes = get_hook_suffix(corr)
+    assert hook_suffixes == {
+        "attn": "hook_attn_out",
+        "mlp": "mlp.hook_post"
+    }
+
+    all_attns = [f"blocks.{i}.attn.hook_result" for i in range(n_layers)]
+    all_mlps = [f"blocks.{i}.mlp.hook_post" for i in range(n_layers)]
+
+    corr_dict = {
+        "all_nodes_hook": [all_mlps[3], all_attns[0]]
+    }
+
+    corr = make_corr_from_dict(corr_dict)
+    hook_suffixes = get_hook_suffix(corr)
+    assert hook_suffixes == {
+        "attn": "attn.hook_result",
+        "mlp": "mlp.hook_post"
+    }
