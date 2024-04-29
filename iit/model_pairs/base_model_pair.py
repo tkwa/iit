@@ -348,7 +348,6 @@ class BaseModelPair(ABC):
                 )
         return test_metrics
 
-    @final
     @staticmethod
     def _check_early_stop_condition(test_metrics):
         """

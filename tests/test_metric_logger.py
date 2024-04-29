@@ -1,5 +1,6 @@
 from iit.utils.metric import *
 from iit.model_pairs import IITModelPair
+from iit.model_pairs import IOI_ModelPair
 
 
 def test_metric_collection():
@@ -38,4 +39,46 @@ def test_early_stop():
     )
     mc.update({"acc": 0.991, "loss": 0.1, "new_acc": 0.991})
     es_condition = IITModelPair._check_early_stop_condition(mc.metrics)
+    assert es_condition == True
+
+
+def test_IOI_early_stop():
+    per_token_accuracy = [
+        1.0, # 0
+        1.0, # 1
+        0.005, # 2
+        0.985, # 3
+        0.022, # 4
+        0.019, # 5
+        1.0, # 6
+        1.0, # 7
+        0.361, # 8
+        1.0, # 9
+        0.084, # 10
+        0.688, # 11
+        1.0, # 12
+        0.332, # 13
+        1.0, # 14
+        1.0, # 15
+    ]
+
+    IIA = 100
+    accuracy = 60
+
+    mc = IOI_ModelPair.make_test_metrics()
+    mc.update(
+        {
+            "val/iit_loss": 0.2,
+            "val/IIA": IIA,
+            "val/accuracy": accuracy,
+            "val/per_token_accuracy": per_token_accuracy,
+        }
+    )
+
+    es_condition = IOI_ModelPair._check_early_stop_fn(mc.metrics, non_ioi_thresh=0.9)
+
+    assert es_condition == False
+
+    es_condition = IOI_ModelPair._check_early_stop_fn(mc.metrics, non_ioi_thresh=0.5)
+
     assert es_condition == True

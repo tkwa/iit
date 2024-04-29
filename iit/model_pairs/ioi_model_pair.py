@@ -7,11 +7,16 @@ from iit.model_pairs.base_model_pair import HLNode
 from iit.model_pairs import IITBehaviorModelPair, StopGradModelPair, StrictIITModelPair
 import iit.utils.index as index
 
+
 class IOI_ModelPair(StrictIITModelPair):
     def __init__(self, hl_model, ll_model, corr, training_args={}):
-        super().__init__(hl_model, ll_model, corr, training_args)
-        default_training_args = {"next_token": False}
+        default_training_args = {
+            "next_token": False,
+            "non_ioi_thresh": 0.65,
+            "use_per_token_check": False,
+        }
         default_training_args.update(training_args)
+        super().__init__(hl_model, ll_model, corr, default_training_args)
         self.next_token = default_training_args["next_token"]
 
     @property
@@ -99,3 +104,60 @@ class IOI_ModelPair(StrictIITModelPair):
             ),
             "val/per_token_accuracy": per_token_accuracy,
         }
+
+    @staticmethod
+    def _check_early_stop_fn(
+        metric_collection: list[MetricStore],
+        verbose=False,
+        non_ioi_thresh=0.65,
+        use_per_token_check=False,
+    ):
+        """
+        Early stopping for IOI
+        """
+        print_if_verbose = lambda x: print(x) if verbose else None
+        for metric in metric_collection:
+            if metric.get_name() == "val/IIA" and metric.get_value() < 100:
+                print_if_verbose(f"IIA is not enough: {metric.get_value()}")
+                return False
+            elif metric.get_name() == "val/per_token_accuracy":
+                per_toke_acc = metric.get_value()
+                if per_toke_acc[-1] < 1:
+                    print_if_verbose(
+                        f"per_token_acc at IOI index is not enough: {per_toke_acc[-1]}"
+                    )
+                    return False
+                if np.mean(per_toke_acc) < non_ioi_thresh:
+                    print_if_verbose(
+                        f"mean per_token_acc is not enough: {np.mean(per_toke_acc)}"
+                    )
+                    return False
+
+                if use_per_token_check:
+                    # Ideally, we should check the per_token_accuracy at the IOI index,
+                    # but this fails for multiple patterns. So am disabling this check for now.
+                    print(
+                        "WARNING: Using per_token_check for early stopping can lead to unexpected error. Please use with caution."
+                    )
+                    for i in range(len(per_toke_acc)):
+                        if i in [2, 4, 5, 8, 10, 13]:
+                            continue
+                        if per_toke_acc[i] < non_ioi_thresh:
+                            if verbose:
+                                print(
+                                    f"per_token_acc at {i} is not enough: {per_toke_acc[i]}"
+                                )
+                            return False
+        return True
+
+    def _check_early_stop_condition(
+        self,
+        *args,
+        **kwargs,
+    ):
+        return self._check_early_stop_fn(
+            *args,
+            **kwargs,
+            non_ioi_thresh=self.training_args["non_ioi_thresh"],
+            use_per_token_check=self.training_args["use_per_token_check"],
+        )
