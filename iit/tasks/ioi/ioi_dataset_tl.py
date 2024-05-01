@@ -270,7 +270,7 @@ class IOIDataset(Dataset):
     @staticmethod
     def get_default_templates():
         return [
-            # "[A] and [B] went to the [LOCATION] to buy [OBJECT]. [B] handed the [OBJECT] to [A]",
+            "Then, [A] and [B] went to the [LOCATION]. [A] gave the [OBJECT] to [B]",
             "Then, [B] and [A] went to the [LOCATION]. [B] gave the [OBJECT] to [A]",
         ]
 

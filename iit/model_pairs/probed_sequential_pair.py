@@ -1,4 +1,4 @@
-from iit.model_pairs.iit_model_pairs import *
+from iit.model_pairs.iit_model_pair import *
 from iit.utils.probes import construct_probes
 
 

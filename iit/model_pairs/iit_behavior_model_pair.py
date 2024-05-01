@@ -1,5 +1,5 @@
 from .base_model_pair import *
-from iit.model_pairs.iit_model_pairs import IITModelPair
+from iit.model_pairs.iit_model_pair import IITModelPair
 from iit.utils.metric import *
 
 

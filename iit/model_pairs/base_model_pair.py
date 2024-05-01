@@ -16,58 +16,8 @@ import torch as t
 from abc import ABC, abstractmethod
 from typing import final, Any
 from iit.utils.metric import MetricStoreCollection, MetricType
-
-HookName = str
-HLCache = dict
-
-
-@dataclass
-class HLNode:
-    name: HookName
-    num_classes: int
-    index: Optional[TorchIndex] = Ix[[None]]
-
-    def __post_init__(self):
-        if self.index is None:
-            self.index = Ix[[None]]
-
-    def __hash__(self) -> int:
-        return hash(self.name)
-
-    def __eq__(self, other) -> bool:
-        if isinstance(other, HLNode):
-            return self.name == other.name
-        elif isinstance(other, str):
-            return self.name == other
-        return False
-
-    def __str__(self) -> str:
-        return self.name
-
-    def __repr__(self) -> str:
-        return self.name
-
-
-@dataclass
-class LLNode:
-    name: HookName
-    index: TorchIndex
-    subspace: Optional[t.Tensor] = None
-
-    def __post_init__(self):
-        if self.index is None:
-            self.index = Ix[[None]]
-
-    def __eq__(self, other):
-        return isinstance(other, LLNode) and dataclasses.astuple(
-            self
-        ) == dataclasses.astuple(other)
-
-    def __hash__(self):
-        return hash(dataclasses.astuple(self))
-
-    def get_index(self):
-        return self.index.as_index
+from iit.utils.correspondence import Correspondence
+from .nodes import *
 
 
 class BaseModelPair(ABC):
@@ -76,7 +26,7 @@ class BaseModelPair(ABC):
     hl_cache: tl.ActivationCache
     ll_cache: tl.ActivationCache
     hl_graph: nx.DiGraph
-    corr: dict[HLNode, set[LLNode]]  # high -> low correspondence. Capital Pi in paper
+    corr: Correspondence  # high -> low correspondence. Capital Pi in paper
     training_args: dict[str, Any]
     wandb_method: str
     rng: np.random.Generator

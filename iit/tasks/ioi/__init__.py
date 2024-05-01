@@ -3,6 +3,8 @@ from .ioi_config import NAMES
 from .ioi_hl import IOI_HL
 from .ioi_dataset_tl import IOIDataset, IOIDatasetWrapper
 from iit.model_pairs.base_model_pair import HLNode, LLNode
+from iit.utils.correspondence import Correspondence
+
 n_layers = 6
 n_heads = 4
 d_model = 64
@@ -27,14 +29,9 @@ corr_dict = {
 #     "all_nodes_hook": [*all_mlps[:2], *all_attns[:4]]
 # }
 
-make_ioi_corr_from_dict = lambda d: {
-    HLNode(k, -1): {LLNode(name=name, index=None) for name in v}
-    for k, v in d.items()
-}
-
-corr = make_ioi_corr_from_dict(corr_dict)
-
 suffixes = {
     "attn": "attn.hook_z",
     "mlp": "mlp.hook_post",
 }
+
+corr = Correspondence.make_corr_from_dict(corr_dict, suffixes=suffixes, make_suffixes_from_corr=False)

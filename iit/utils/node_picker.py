@@ -2,34 +2,9 @@ import iit.utils.index as index
 import iit.model_pairs as mp
 from transformer_lens import HookedTransformer
 import torch as t
+from iit.utils.correspondence import Correspondence
 
 LLParamNode = mp.LLNode
-
-
-def get_hook_suffix(corr: dict[mp.HLNode, set[mp.LLNode]]) -> str:
-    suffixes = {}
-    for hl_node, ll_nodes in corr.items():
-        for ll_node in ll_nodes:
-            # add everything after 'blocks.<layer>.' to the set
-            suffix = ll_node.name.split(".")[2:]
-            suffix = ".".join(suffix)
-            if "attn" in ll_node.name:
-                if "attn" in suffixes and suffixes["attn"] != suffix:
-                    raise ValueError(
-                        f"Multiple attn suffixes found: {suffixes['attn']} and {suffix}, multiple attn hook locations are not supported yet."
-                    )
-                suffixes["attn"] = suffix
-            elif "mlp" in ll_node.name:
-                if "mlp" in suffixes and suffixes["mlp"] != suffix:
-                    raise ValueError(
-                        f"Multiple mlp suffixes found: {suffixes['mlp']} and {suffix}, multiple mlp hook locations are not supported yet."
-                    )
-                suffixes["mlp"] = suffix
-            else:
-                raise ValueError(f"Unknown node type {ll_node.name}")
-
-    return suffixes
-
 
 def get_all_nodes(
     model: HookedTransformer,
@@ -67,12 +42,9 @@ def nodes_intersect(a: mp.LLNode, b: mp.LLNode) -> bool:
 
 def get_nodes_not_in_circuit(
     ll_model: HookedTransformer,
-    hl_ll_corr,
-    suffixes={
-        "attn": "attn.hook_result",
-        "mlp": "mlp.hook_post",
-    },
+    hl_ll_corr: Correspondence
 ) -> list[mp.LLNode]:
+    suffixes = hl_ll_corr.get_suffixes()
     all_nodes = get_all_nodes(ll_model, suffixes)
     nodes_in_circuit = get_nodes_in_circuit(hl_ll_corr)
     nodes_not_in_circuit = []
@@ -84,13 +56,10 @@ def get_nodes_not_in_circuit(
 
 def get_post_nodes_not_in_circuit(
     ll_model: HookedTransformer,
-    hl_ll_corr,
-    suffixes={
-        "attn": "attn.hook_result",
-        "mlp": "mlp.hook_post",
-    },
+    hl_ll_corr: Correspondence,
 ) -> list[mp.LLNode]:
     print("WARNING: This doesn't work when switching individual heads on/off.")
+    suffixes = hl_ll_corr.get_suffixes()
     nodes_not_in_circuit = get_nodes_not_in_circuit(ll_model, hl_ll_corr)
     post_nodes_not_in_circuit = []
     for node in nodes_not_in_circuit:

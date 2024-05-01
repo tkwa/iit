@@ -12,6 +12,7 @@ class StrictIITModelPair(IITBehaviorModelPair):
             "iit_weight": 1.0,
             "behavior_weight": 1.0,
             "strict_weight": 1.0,
+            "clip_grad_norm": 1.0,
         }
         training_args = {**default_training_args, **training_args}
         super().__init__(hl_model, ll_model, corr=corr, training_args=training_args)

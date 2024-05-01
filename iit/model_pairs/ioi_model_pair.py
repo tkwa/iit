@@ -10,13 +10,13 @@ import iit.utils.index as index
 
 class IOI_ModelPair(StrictIITModelPair):
     def __init__(self, hl_model, ll_model, corr, training_args={}):
+        super().__init__(hl_model, ll_model, corr, training_args=training_args)
         default_training_args = {
             "next_token": False,
             "non_ioi_thresh": 0.65,
             "use_per_token_check": False,
         }
-        default_training_args.update(training_args)
-        super().__init__(hl_model, ll_model, corr, default_training_args)
+        self.training_args = {**default_training_args, **self.training_args}
         self.next_token = default_training_args["next_token"]
 
     @property

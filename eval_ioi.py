@@ -2,7 +2,8 @@ import torch
 import argparse
 import os
 import transformer_lens
-from iit.tasks.ioi import make_ioi_dataset_and_hl, NAMES, ioi_cfg, make_ioi_corr_from_dict, corr_dict, suffixes
+from iit.tasks.ioi import make_ioi_dataset_and_hl, NAMES, ioi_cfg, corr, suffixes
+from iit.utils.correspondence import Correspondence
 from iit.utils.eval_ablations import *
 import numpy as np
 from iit.utils.iit_dataset import IITDataset
@@ -38,9 +39,9 @@ except FileNotFoundError:
 # load corr
 if os.path.exists(f"{save_dir}/corr.json"):
     corr_dict = json.load(open(f"{save_dir}/corr.json"))
+    corr = Correspondence.make_corr_from_dict(corr_dict, suffixes)
 else:
     print("WARNING: No corr.json found, using default corr_dict")
-corr = make_ioi_corr_from_dict(corr_dict)
 
 # load dataset
 num_samples = 18000
@@ -55,14 +56,14 @@ model_pair = mp.IOI_ModelPair(
 
 np.random.seed(0)
 t.manual_seed(0)
-result_not_in_circuit = check_causal_effect(model_pair, test_set, node_type="n", verbose=False, suffixes=suffixes)
-result_in_circuit = check_causal_effect(model_pair, test_set, node_type="c", verbose=False, suffixes=suffixes)
+result_not_in_circuit = check_causal_effect(model_pair, test_set, node_type="n", verbose=False)
+result_in_circuit = check_causal_effect(model_pair, test_set, node_type="c", verbose=False)
 
 metric_collection = model_pair._run_eval_epoch(test_set.make_loader(256, 0), model_pair.loss_fn)
 
 # zero/mean ablation
 uni_test_set = IITUniqueDataset(ioi_dataset, ioi_dataset, seed=0)
-za_result_not_in_circuit, za_result_in_circuit = get_causal_effects_for_all_nodes(model_pair, uni_test_set, batch_size=batch_size, use_mean_cache=use_mean_cache, suffixes=suffixes)
+za_result_not_in_circuit, za_result_in_circuit = get_causal_effects_for_all_nodes(model_pair, uni_test_set, batch_size=batch_size, use_mean_cache=use_mean_cache)
 
 df = make_combined_dataframe_of_results(result_not_in_circuit, result_in_circuit, za_result_not_in_circuit, za_result_in_circuit, use_mean_cache=use_mean_cache)
 

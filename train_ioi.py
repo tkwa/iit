@@ -14,14 +14,14 @@ epochs = 100
 training_args = {
     "batch_size": 256,
     "lr": 1e-4,
-    "num_workers": 0,
     "iit_weight": 1.0,
     "behavior_weight": 1.0,
-    "strict_weight": 0.0,
+    "strict_weight": 0.4,
     "next_token": True,
-    "lr_scheduler": None,
-    "grad_clip_norm": 1.0,
+    "lr_scheduler": None,  
+    # "clip_grad_norm": 1.0,
     "early_stop": True,
+    "use_single_loss": False,
 }
 t.manual_seed(0)
 np.random.seed(0)
