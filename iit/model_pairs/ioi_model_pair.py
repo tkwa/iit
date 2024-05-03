@@ -60,9 +60,12 @@ class IOI_ModelPair(StrictIITModelPair):
         loss_fn: Callable[[Tensor, Tensor], Tensor],
     ):
         hl_output, ll_output = self.do_intervention(base_input, ablation_input, hl_node)
-        hl_output = t.nn.functional.softmax(hl_output, dim=-1)
+        # hl_output = t.nn.functional.softmax(hl_output, dim=-1)
+        hl_argmax = t.argmax(hl_output[:, -1, :], dim=-1)
+        hl_one_hot = t.nn.functional.one_hot(hl_argmax, num_classes=hl_output.shape[-1])
+        hl_probs = hl_one_hot.float()
 
-        loss = loss_fn(ll_output[:, -1, :], hl_output[:, -1, :])
+        loss = loss_fn(ll_output[:, -1, :], hl_probs)
         return loss
 
     def run_eval_step(
@@ -75,9 +78,12 @@ class IOI_ModelPair(StrictIITModelPair):
         hl_node = self.sample_hl_name()
         hl_output, ll_output = self.do_intervention(base_input, ablation_input, hl_node)
         # CrossEntropyLoss needs target probs, not logits
-        hl_output = t.nn.functional.softmax(hl_output, dim=-1)
+        # hl_output = t.nn.functional.softmax(hl_output, dim=-1)
+        hl_argmax = t.argmax(hl_output[:, -1, :], dim=-1)
+        hl_one_hot = t.nn.functional.one_hot(hl_argmax, num_classes=hl_output.shape[-1])
+        hl_probs = hl_one_hot.float()
         assert self.hl_model.is_categorical()
-        loss = loss_fn(ll_output[:, -1, :], hl_output[:, -1, :])
+        loss = loss_fn(ll_output[:, -1, :], hl_probs)
         if ll_output.shape == hl_output.shape:
             # To handle the case when labels are one-hot
             hl_output = t.argmax(hl_output, dim=-1)
@@ -107,7 +113,7 @@ class IOI_ModelPair(StrictIITModelPair):
 
     @staticmethod
     def _check_early_stop_fn(
-        metric_collection: list[MetricStore],
+        test_metrics: list[MetricStore],
         verbose=False,
         non_ioi_thresh=0.65,
         use_per_token_check=False,
@@ -116,7 +122,7 @@ class IOI_ModelPair(StrictIITModelPair):
         Early stopping for IOI
         """
         print_if_verbose = lambda x: print(x) if verbose else None
-        for metric in metric_collection:
+        for metric in test_metrics:
             if metric.get_name() == "val/IIA" and metric.get_value() < 100:
                 print_if_verbose(f"IIA is not enough: {metric.get_value()}")
                 return False
@@ -155,6 +161,8 @@ class IOI_ModelPair(StrictIITModelPair):
         *args,
         **kwargs,
     ):
+        if not self.training_args["next_token"]:
+            return super()._check_early_stop_condition(*args, **kwargs)
         return self._check_early_stop_fn(
             *args,
             **kwargs,

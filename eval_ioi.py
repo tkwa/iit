@@ -16,7 +16,7 @@ parser = argparse.ArgumentParser(description="IIT evaluation")
 parser.add_argument("-w", "--weights", type=str, default="100_100_0", help="IIT_behavior_strict weights")
 parser.add_argument("-m", "--mean", type=bool, default=True, help="Use mean cache")
 parser.add_argument("-c", "--class_name", type=str, default="IOI_ModelPair", help="Model pair class to use")
-parser.add_argument("-b", "--batch_size", type=int, default=256, help="Batch size for making mean cache (if using mean ablation)")
+parser.add_argument("-b", "--batch_size", type=int, default=512, help="Batch size for making mean cache (if using mean ablation)")
 args = parser.parse_args()
 
 weights = args.weights
@@ -59,7 +59,7 @@ t.manual_seed(0)
 result_not_in_circuit = check_causal_effect(model_pair, test_set, node_type="n", verbose=False)
 result_in_circuit = check_causal_effect(model_pair, test_set, node_type="c", verbose=False)
 
-metric_collection = model_pair._run_eval_epoch(test_set.make_loader(256, 0), model_pair.loss_fn)
+metric_collection = model_pair._run_eval_epoch(test_set.make_loader(batch_size, 0), model_pair.loss_fn)
 
 # zero/mean ablation
 uni_test_set = IITUniqueDataset(ioi_dataset, ioi_dataset, seed=0)

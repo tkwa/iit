@@ -9,17 +9,18 @@ import os
 import json
 
 DEVICE = t.device("cuda" if t.cuda.is_available() else "cpu")
-num_samples = 9000
-epochs = 100
+num_samples = 12000
+epochs = 1000
+use_wandb = True
 training_args = {
     "batch_size": 256,
     "lr": 1e-4,
     "iit_weight": 1.0,
     "behavior_weight": 1.0,
     "strict_weight": 0.4,
-    "next_token": True,
+    "next_token": False,
     "lr_scheduler": None,  
-    # "clip_grad_norm": 1.0,
+    "clip_grad_norm": 1.0,
     "early_stop": True,
     "use_single_loss": False,
 }
@@ -31,20 +32,20 @@ ll_cfg.update(ioi_cfg)
 
 ll_cfg["init_weights"] = True
 ll_model = transformer_lens.HookedTransformer(ll_cfg).to(DEVICE)
-
-ioi_dataset, hl_model = make_ioi_dataset_and_hl(num_samples, ll_model, NAMES, verbose=True)
-
+print("making ioi dataset and hl")
+ioi_dataset, hl_model = make_ioi_dataset_and_hl(num_samples, ll_model, NAMES, verbose=False)
+print("making IIT dataset")
 train_ioi_dataset, test_ioi_dataset = train_test_split(
     ioi_dataset, test_size=0.2, random_state=42
 )
 train_set = IITDataset(train_ioi_dataset, train_ioi_dataset, seed=0)
 test_set = IITDataset(test_ioi_dataset, test_ioi_dataset, seed=0)
-
+print("making ioi model pair")
 model_pair = mp.IOI_ModelPair(
     ll_model=ll_model, hl_model=hl_model, corr=corr, training_args=training_args
 )
-
-model_pair.train(train_set, test_set, epochs=epochs, use_wandb=False)
+print("training ioi model pair")
+model_pair.train(train_set, test_set, epochs=epochs, use_wandb=use_wandb)
 
 print(f"done training")
 # save model

@@ -216,6 +216,7 @@ class IOIDataset(Dataset):
         self.templates = (
             templates if templates is not None else self.get_default_templates()
         )
+        self.max_sentence_length = max(len(self.tokenizer.encode(t)) for t in self.templates)
         self.names = names if names is not None else self.get_default_names()
         self.nouns = nouns if nouns is not None else self.get_default_nouns()
 
@@ -228,16 +229,21 @@ class IOIDataset(Dataset):
     def __len__(self):
         return len(self.samples)
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx, pad_token=False):
         sample = self.samples[idx]
         prompt = self.tokenizer.encode(sample["text"])
         if self.prepend_bos:
             prompt = [self.tokenizer.bos_token_id] + prompt
+        pad_token = self.tokenizer.pad_token_id
+        if pad_token:
+            prompt += [pad_token] * (self.max_sentence_length - len(prompt))
+        idx_to_ablate = len(prompt) - 2
 
         return {
             "prompt": torch.LongTensor(prompt),
             "IO": torch.LongTensor(self.tokenizer.encode(sample["IO"])),
             "S": torch.LongTensor(self.tokenizer.encode(sample["S"])),
+            "idx_to_ablate": idx_to_ablate,
         }
 
     def get_sample(self, symmetric=False) -> List[Dict[str, str]]:
@@ -270,6 +276,8 @@ class IOIDataset(Dataset):
     @staticmethod
     def get_default_templates():
         return [
+            "Then, [B] and [A] went to the [LOCATION]. [A] gave the [OBJECT] to [B]",
+            "Then, [A] and [B] went to the [LOCATION]. [B] gave the [OBJECT] to [A]",
             "Then, [A] and [B] went to the [LOCATION]. [A] gave the [OBJECT] to [B]",
             "Then, [B] and [A] went to the [LOCATION]. [B] gave the [OBJECT] to [A]",
         ]
