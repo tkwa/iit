@@ -12,7 +12,23 @@ from iit.tasks.hl_model import HLModel
 
 class InductionHead(t.nn.Module):
     def __init__(self):
-        pass
+        super().__init__()
+
+    def forward(self, tokens: t.Tensor, prev_tok_out: t.Tensor):
+        """
+        In a1 b1 ... a2 situations, uses prev tok information from b1
+        to copy token b1 to induction output of position a2.
+
+        prev_tok_out[b1] must equal tokens[a2]
+        """
+        result = t.full_like(tokens, -1) # batch seq
+
+        matches = (prev_tok_out[..., None] == tokens[..., None, :]) # batch seq1 seq2, seq1<seq2
+        matches = t.triu(matches, diagonal=1) # only consider positions before this one
+        indices = matches.nonzero(as_tuple=True)
+
+        result[indices[0], indices[2]] = tokens[indices[1]] # TODO only copy the token with max seq1
+        return result
 
 
 class ArgMoverHead(t.nn.Module):
