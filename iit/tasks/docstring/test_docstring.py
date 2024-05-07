@@ -30,6 +30,30 @@ def test_arg_mover_head():
         [1, 2, 4, 10]]
     ))
 
+def test_docstring_abc():
+    """
+
+    """
+    token_map = {
+        "load": 1,
+        "size": 2,
+        "files": 3,
+        ",": 4,
+        "param": 5,
+    }
+
+    tokens = "load , size , files 9 10 param load 11 param size 12 13 12 param"
+
+    tokens = [token_map.get(token, token) for token in tokens.split()]
+    tokens = t.tensor([[int(t) for t in tokens]])
+    model = Docstring_HL()
+    logits = model((tokens, None, None))
+    print(logits[0, -1])
+    assert nonzero_values(logits[0, -1]).equal(t.tensor(
+        [[3, 10]]
+    ))
+
 if __name__ == "__main__":
     test_induction_head()
     test_arg_mover_head()
+    test_docstring_abc()

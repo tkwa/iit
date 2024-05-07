@@ -67,39 +67,47 @@ class Docstring_HL(HookedRootModule, HLModel):
     - Induction head induction: copy info from B_doc to param_3
     - Arg mover head(s) arg_mover: copy answer value from C_def to param_3
 
-    We could add multiple heads, but don't yet
+    Implementation ideas
+    - Add multiple heads
+    - Different previous token heads in different contexts
     """
-    def __init__(self, model, hook_name: HookName):
-        super().__init__(model, hook_name)
+    def __init__(self):
+        super().__init__()
         self.hook_pre = HookPoint()
         self.prev_def1 = PreviousHead()
-        self.hook_def1 = HookPoint()
+        self.hook_prev1 = HookPoint()
         self.prev_def2 = PreviousHead()
-        self.hook_def2 = HookPoint()
+        self.hook_prev2 = HookPoint()
         self.prev_doc = PreviousHead()
-        self.hook_doc = HookPoint()
+        self.hook_prev_doc = HookPoint()
         self.induction = InductionHead()
         self.hook_induction = HookPoint()
 
         self.arg_mover = ArgMoverHead()
         self.hook_arg_mover = HookPoint()
 
+    def is_categorical(self):
+        return True
+
     def forward(self, args, verbose=False):
         input, _label, _intermediate_data = args
+        assert len(input.shape) == 2, f"Expected input to be batch seq, got {input.shape}"
         tokens = self.hook_pre(input)
-        tokens = self.prev_def1(tokens)
-        tokens = self.hook_def1(tokens)
+        prev1 = self.prev_def1(tokens)
+        prev1 = self.hook_prev1(prev1)
 
-        tokens = self.prev_def2(tokens)
-        tokens = self.hook_def2(tokens)
+        prev2 = self.prev_def2(prev1)
+        prev2 = self.hook_prev2(prev2)
 
-        tokens = self.prev_doc(tokens)
-        tokens = self.hook_doc(tokens)
+        prev_doc = self.prev_doc(tokens)
+        prev_doc = self.hook_prev_doc(prev_doc)
+        print(f"{tokens = }")
+        print(f"{prev_doc = }")
 
-        tokens = self.induction(tokens)
-        tokens = self.hook_induction(tokens)
+        induction_out = self.induction(tokens, prev_doc)
+        induction_out = self.hook_induction(induction_out)
 
-        tokens = self.arg_mover(tokens)
-        tokens = self.hook_arg_mover(tokens)
+        logits = self.arg_mover(tokens, prev2, induction_out)
+        logits = self.hook_arg_mover(logits)
 
-        return tokens
+        return logits
