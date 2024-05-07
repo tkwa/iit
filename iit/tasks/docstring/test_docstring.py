@@ -5,6 +5,17 @@ from .docstring_hl import *
 def nonzero_values(a: t.Tensor):
     return t.cat((a.nonzero(), a[a != 0][:, None]), dim=-1)
 
+def test_induction_head():
+    prev_tok_out = t.tensor([[2, 2, 2], [4, 5, 6]])
+    tokens = t.tensor([[1, 2, 3], [20, 4, 4]])
+    induction_head = InductionHead()
+    result = induction_head(tokens, prev_tok_out)
+    assert result.shape == (2, 3)
+    assert result.equal(t.tensor(
+        [[-1,  1, -1],
+        [-1, 20, 20]]
+    ))
+
 def test_arg_mover_head():
     tokens = t.tensor([[1, 2, 3], [4, 5, 6]])
     def_patterns = t.tensor([[1, 2, 3], [4, 5, 6]])
@@ -20,4 +31,5 @@ def test_arg_mover_head():
     ))
 
 if __name__ == "__main__":
+    test_induction_head()
     test_arg_mover_head()

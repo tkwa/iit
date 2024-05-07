@@ -27,7 +27,7 @@ class InductionHead(t.nn.Module):
         matches = t.triu(matches, diagonal=1) # only consider positions before this one
         indices = matches.nonzero(as_tuple=True)
 
-        result[indices[0], indices[2]] = tokens[indices[1]] # TODO only copy the token with max seq1
+        result[indices[0], indices[2]] = tokens[indices[0], indices[1]] # TODO only copy the token with max seq1
         return result
 
 
