@@ -17,23 +17,21 @@ def test_induction_head():
     ))
 
 def test_arg_mover_head():
-    tokens = t.tensor([[1, 2, 3], [4, 5, 6]])
-    def_patterns = t.tensor([[1, 2, 3], [4, 5, 6]])
-    induction_output = t.tensor([[5, 1, 10], [15, 4, 4]])
-    arg_mover = ArgMoverHead(d_vocab=6)
+    tokens = t.tensor([[0, 1, 2, 3], [4, 5, 6, 7]])
+    def_patterns = t.tensor([[10, 10, 2, 3], [9, 9, 9, 7]])
+    induction_output = t.tensor([[5, 0, 10, 1], [10, 9, 9, 9]])
+    arg_mover = ArgMoverHead(d_vocab=8, logit_increase=50)
     logits = arg_mover(tokens, def_patterns, induction_output)
-    assert logits.shape == (2, 3, 6) # batch seq d_vocab
-    # print(logits)
+    assert logits.shape == (2, 4, 8) # batch seq d_vocab
     assert nonzero_values(logits).equal(t.tensor(
-        [[0, 1, 1, 10],
-        [1, 1, 4, 10],
-        [1, 2, 4, 10]]
+        [[0, 2, 0, 50],
+         [1, 2, 4, 50],
+         [1, 3, 4, 50],
+         [1, 3, 5, 50],
+        ]
     ))
 
 def test_docstring_abc():
-    """
-
-    """
     token_map = {
         "load": 1,
         "size": 2,
@@ -50,7 +48,7 @@ def test_docstring_abc():
     logits = model((tokens, None, None))
     print(logits[0, -1])
     assert nonzero_values(logits[0, -1]).equal(t.tensor(
-        [[3, 10]]
+        [[3, 50]]
     ))
 
 if __name__ == "__main__":
